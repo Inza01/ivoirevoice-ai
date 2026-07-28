@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environnements et secrets
+.venv/
+venv/
+.env
+
+# Éditeurs et système
+.idea/
+.vscode/
+.DS_Store
+
+# Données, modèles et sorties (hors Git)
+/data/
+/checkpoints/
+/artifacts/
+/outputs/
+/runs/
+
+# Notebooks
+.ipynb_checkpoints/
+

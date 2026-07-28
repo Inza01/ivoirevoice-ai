@@ -1,0 +1,22 @@
+project:
+  name: IvoireVoice AI
+  version: 0.1.0
+  default_language: fr
+  supported_languages:
+    - fr
+    - dyu
+  default_model: dummy
+
+api:
+  max_upload_size_mb: 25
+  allowed_content_types:
+    - audio/flac
+    - audio/m4a
+    - audio/mp4
+    - audio/mpeg
+    - audio/ogg
+    - audio/wav
+    - audio/webm
+    - audio/x-m4a
+    - audio/x-wav
+

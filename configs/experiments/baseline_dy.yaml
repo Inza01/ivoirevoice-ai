@@ -1,0 +1,9 @@
+experiment:
+  name: baseline-dy
+  language: dyu
+  mode: evaluation
+  model_config: configs/models/whisper_small.yaml
+  data_config: configs/data/dioula.yaml
+  split_strategy: speaker
+  status: planned
+

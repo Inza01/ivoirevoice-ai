@@ -1,0 +1,9 @@
+experiment:
+  name: baseline-fr
+  language: fr
+  mode: evaluation
+  model_config: configs/models/whisper_small.yaml
+  data_config: configs/data/french.yaml
+  split_strategy: speaker
+  status: planned
+

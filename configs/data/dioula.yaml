@@ -1,0 +1,12 @@
+dataset:
+  language_code: dyu
+  source: null
+  audio_column: audio
+  text_column: transcription
+  speaker_column: speaker_id
+  raw_directory: data/raw/dioula
+  processed_directory: data/processed/dioula
+  split:
+    strategy: speaker
+    seed: 42
+

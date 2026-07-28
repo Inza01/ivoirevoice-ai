@@ -1,0 +1,9 @@
+experiment:
+  name: finetune-dy
+  language: dyu
+  mode: fine_tuning
+  model_config: configs/models/whisper_small.yaml
+  data_config: configs/data/dioula.yaml
+  split_strategy: speaker
+  status: planned
+

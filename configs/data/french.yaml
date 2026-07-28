@@ -1,0 +1,12 @@
+dataset:
+  language_code: fr
+  source: null
+  audio_column: audio
+  text_column: transcription
+  speaker_column: speaker_id
+  raw_directory: data/raw/french
+  processed_directory: data/processed/french
+  split:
+    strategy: speaker
+    seed: 42
+

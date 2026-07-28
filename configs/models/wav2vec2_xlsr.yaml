@@ -1,0 +1,10 @@
+model:
+  name: wav2vec2-xlsr
+  family: wav2vec2
+  pretrained_id: facebook/wav2vec2-large-xlsr-53
+  task: transcription
+  implementation_status: planned
+  supported_languages:
+    - fr
+    - dyu
+
