@@ -20,11 +20,18 @@ venv/
 
 # Données, modèles et sorties (hors Git)
 /data/
+/datasets/
 /checkpoints/
 /artifacts/
+/cache/
 /outputs/
 /runs/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.wav
+*.mp4
 
 # Notebooks
 .ipynb_checkpoints/
-

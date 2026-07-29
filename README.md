@@ -5,9 +5,9 @@ transcription vocale adaptée au contexte ivoirien. Le MVP cible le français
 (`fr`) et le dioula (`dyu`). Le baoulé est prévu comme extension future, sans
 modifier le cœur des interfaces.
 
-Cette version est un squelette logiciel : elle utilise uniquement un backend
-fictif et ne fournit encore **aucun résultat final, benchmark ou modèle ASR
-entraîné**.
+Cette version comprend le squelette logiciel et le pipeline d'audit local du
+corpus dioula. Elle utilise uniquement un backend ASR fictif et ne fournit
+encore **aucun résultat final, benchmark ou modèle ASR entraîné**.
 
 ## Périmètre actuel
 
@@ -15,11 +15,13 @@ entraîné**.
 - configuration YAML surchargeable par variables d'environnement ;
 - contrats pour les futurs backends ASR ;
 - API FastAPI et interface Gradio utilisant `DummyBackend` ;
+- pipeline reproductible de découverte, manifeste et audit dioula ;
 - tests hors ligne, sans GPU et sans téléchargement de modèle.
 
 Les datasets bruts, données préparées et checkpoints ne sont pas versionnés.
 Placez-les dans les espaces de stockage prévus par votre environnement ; les
-répertoires locaux `data/` et `checkpoints/` sont ignorés par Git.
+répertoires locaux `data/`, `datasets/`, `artifacts/` et `checkpoints/` sont
+ignorés par Git.
 
 ## Installation (Python 3.11)
 
@@ -49,8 +51,48 @@ make test
 make verify
 ```
 
-Les tests utilisent exclusivement `DummyBackend`. Ils ne nécessitent ni
-connexion internet, ni GPU, ni modèle téléchargé.
+Les tests ASR utilisent exclusivement `DummyBackend` et les tests de données
+créent de petits WAV et JSON artificiels. Ils ne lisent pas le corpus réel et
+ne nécessitent ni connexion internet, ni GPU, ni modèle téléchargé.
+
+## Auditer le corpus dioula
+
+Les données et artefacts doivent rester hors du dépôt. Le pipeline ne modifie
+jamais les fichiers bruts, ignore les MP4, ne conserve aucune URL `audioSrc` et
+pseudonymise les identifiants de locuteurs.
+
+Tant que la licence et le consentement ne sont pas confirmés, le corpus dioula
+est limité à `local_research_only` : aucune donnée, manifeste complet ou modèle
+dérivé ne doit être envoyé vers un service externe ou publié.
+
+```bash
+export IVOIREVOICE_DIOULA_DATA_DIR="/chemin/vers/voices_data"
+export IVOIREVOICE_ARTIFACTS_DIR="/chemin/vers/artifacts"
+
+make manifest-dioula
+make audit-dioula
+```
+
+Une surcharge ponctuelle est aussi possible :
+
+```bash
+make audit-dioula \
+  DIOULA_DATA_DIR="/chemin/vers/voices_data" \
+  ARTIFACTS_DIR="/chemin/vers/artifacts"
+```
+
+Les principales sorties, relatives à `IVOIREVOICE_ARTIFACTS_DIR`, sont :
+
+- `manifests/dioula_manifest_draft.csv` ;
+- `reports/data_audit/dioula_inventory.json` ;
+- `reports/data_audit/dioula_summary.json` ;
+- `reports/data_audit/dioula_audit.md` ;
+- `reports/data_audit/dioula_split_proposal.json` ;
+- `reports/data_audit/unmatched_audio.csv` et `ambiguous_audio.csv`.
+
+Le split reste vide dans le manifeste tant que sa proposition n'a pas été
+validée humainement. Le hash SHA-256 peut être désactivé avec
+`IVOIREVOICE_HASH_AUDIO=false`.
 
 ## Lancer les interfaces fictives
 
@@ -79,4 +121,3 @@ Wav2Vec2 ne font pas partie de cette phase.
 - [Carte des données](docs/data_card.md)
 - [Carte des modèles](docs/model_card.md)
 - [Protocole expérimental](docs/experiment_protocol.md)
-

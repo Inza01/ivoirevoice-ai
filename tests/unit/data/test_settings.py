@@ -1,0 +1,81 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from ivoirevoice.data.settings import load_dioula_settings
+from ivoirevoice.exceptions import ConfigError
+
+CONFIG = """
+dataset:
+  language_code: dyu
+  source_environment_variable: IVOIREVOICE_DIOULA_DATA_DIR
+  license_status: unknown
+  usage_scope: local_research_only
+  hash_audio: true
+  split:
+    seed: 42
+    train_ratio: 0.8
+    validation_ratio: 0.1
+    test_ratio: 0.1
+artifacts:
+  root_environment_variable: IVOIREVOICE_ARTIFACTS_DIR
+  manifest_path: manifests/dioula.csv
+  report_directory: reports/data_audit
+"""
+
+
+def _config(tmp_path: Path, content: str = CONFIG) -> Path:
+    path = tmp_path / "dioula.yaml"
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+def test_loads_paths_only_from_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dataset = tmp_path / "dataset"
+    artifacts = tmp_path / "artifacts"
+    dataset.mkdir()
+    monkeypatch.setenv("IVOIREVOICE_DIOULA_DATA_DIR", str(dataset))
+    monkeypatch.setenv("IVOIREVOICE_ARTIFACTS_DIR", str(artifacts))
+    monkeypatch.setenv("IVOIREVOICE_HASH_AUDIO", "false")
+
+    settings = load_dioula_settings(_config(tmp_path))
+
+    assert settings.dataset_root == dataset
+    assert settings.artifacts_root == artifacts
+    assert settings.hash_audio is False
+    assert settings.usage_scope == "local_research_only"
+
+
+def test_rejects_artifacts_inside_raw_corpus(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dataset = tmp_path / "dataset"
+    dataset.mkdir()
+    monkeypatch.setenv("IVOIREVOICE_DIOULA_DATA_DIR", str(dataset))
+    monkeypatch.setenv("IVOIREVOICE_ARTIFACTS_DIR", str(dataset / "generated"))
+
+    with pytest.raises(ConfigError, match="corpus brut"):
+        load_dioula_settings(_config(tmp_path))
+
+
+def test_rejects_output_path_traversal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dataset = tmp_path / "dataset"
+    dataset.mkdir()
+    monkeypatch.setenv("IVOIREVOICE_DIOULA_DATA_DIR", str(dataset))
+    monkeypatch.setenv("IVOIREVOICE_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
+    invalid_config = CONFIG.replace(
+        "manifest_path: manifests/dioula.csv",
+        "manifest_path: ../outside.csv",
+    )
+
+    with pytest.raises(ConfigError, match="chemin relatif sûr"):
+        load_dioula_settings(_config(tmp_path, invalid_config))

@@ -1,12 +1,20 @@
 dataset:
   language_code: dyu
-  source: null
+  source_environment_variable: IVOIREVOICE_DIOULA_DATA_DIR
   audio_column: audio
   text_column: transcription
   speaker_column: speaker_id
-  raw_directory: data/raw/dioula
-  processed_directory: data/processed/dioula
+  license_status: unknown
+  usage_scope: local_research_only
+  hash_audio: true
   split:
     strategy: speaker
     seed: 42
+    train_ratio: 0.8
+    validation_ratio: 0.1
+    test_ratio: 0.1
 
+artifacts:
+  root_environment_variable: IVOIREVOICE_ARTIFACTS_DIR
+  manifest_path: manifests/dioula_manifest_draft.csv
+  report_directory: reports/data_audit

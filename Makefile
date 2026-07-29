@@ -2,15 +2,17 @@ PYTHON ?= python3.11
 VENV ?= .venv
 VENV_PYTHON := $(VENV)/bin/python
 VENV_BIN := $(VENV)/bin
+DIOULA_DATA_DIR ?= $(IVOIREVOICE_DIOULA_DATA_DIR)
+ARTIFACTS_DIR ?= $(if $(IVOIREVOICE_ARTIFACTS_DIR),$(IVOIREVOICE_ARTIFACTS_DIR),../artifacts)
 
-.PHONY: setup install-dev lint format typecheck test verify api ui
+.PHONY: setup install-dev lint format typecheck test verify api ui audit-dioula manifest-dioula
 
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(VENV_PYTHON) -m pip install --upgrade pip
 
 install-dev:
-	$(VENV_PYTHON) -m pip install -e ".[core,api,ui,dev]"
+	$(VENV_PYTHON) -m pip install -e ".[core,data,api,ui,dev]"
 
 lint:
 	$(VENV_BIN)/ruff check .
@@ -36,3 +38,12 @@ api:
 ui:
 	$(VENV_PYTHON) -m ivoirevoice.ui.app
 
+audit-dioula:
+	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
+	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
+	$(VENV_PYTHON) -m ivoirevoice.data.audit --config configs/data/dioula.yaml
+
+manifest-dioula:
+	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
+	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
+	$(VENV_PYTHON) -m ivoirevoice.data.manifest --config configs/data/dioula.yaml

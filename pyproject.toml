@@ -18,6 +18,9 @@ dependencies = []
 core = [
   "PyYAML>=6.0,<7",
 ]
+data = [
+  "soundfile>=0.12,<1",
+]
 ml = [
   "peft>=0.12,<1",
   "torch>=2.2,<3",
@@ -61,7 +64,7 @@ src = ["src", "tests", "scripts"]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101"]
+"tests/**/*.py" = ["S101", "PLR2004"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -70,4 +73,3 @@ files = ["src", "scripts"]
 ignore_missing_imports = true
 pretty = true
 show_error_codes = true
-
