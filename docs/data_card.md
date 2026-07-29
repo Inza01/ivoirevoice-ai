@@ -6,7 +6,7 @@ Le corpus dioula reste hors Git et est audité en lecture seule par la Phase 3A.
 Les rapports complets et le manifeste provisoire sont des artefacts locaux non
 versionnés. Le français n'est pas traité dans cette phase.
 
-La licence et le consentement restent inconnus. Sur instruction du formateur,
+La licence et le consentement restent `unknown`. Sur instruction du formateur,
 le périmètre provisoire est `local_research_only` : les expériences locales
 peuvent continuer, mais cela ne constitue pas une autorisation de publier les
 audios, le manifeste complet ou un modèle dérivé.
@@ -48,9 +48,11 @@ locuteurs sont des pseudonymes stables dérivés de la structure locale.
 
 Le candidat d'entraînement conserve également une variante NFC sans tons,
 reliée aux fichiers `text-no-tones` du corpus. Pour le premier MVP uniquement,
-`target_text_mvp` utilise cette variante afin de réduire la complexité du
-vocabulaire. La variante tonale et le texte brut restent présents pour rendre
-une comparaison ultérieure possible.
+`target_text_mvp` utilise cette variante et retire le marqueur d'intonation
+descendante `↘` afin de réduire la complexité du vocabulaire. Le marqueur reste
+intégralement conservé dans `text_raw` et sa présence est représentée par
+`intonation_falling`. La variante tonale et le texte brut restent présents pour
+rendre une comparaison ultérieure possible.
 
 ## Confidentialité et publication
 
@@ -67,11 +69,12 @@ permet pas de publier un modèle dérivé.
 
 ## Partitionnement
 
-Les ensembles d'entraînement, validation et test seront séparés strictement par
-locuteur. La Phase 3A ne produit qu'une proposition déterministe, stratifiée
-autant que possible selon les dossiers de genre. Une validation humaine est
-obligatoire avant de renseigner la colonne `split`. Le baoulé pourra être ajouté
-ultérieurement avec sa propre configuration.
+Les ensembles d'entraînement, validation et test sont séparés strictement par
+locuteur dans la version locale v0.1. La stratégie B validée humainement
+affecte 15 locuteurs à l'entraînement, 3 à la validation et 3 au test. Chaque
+split conserve des locuteurs issus des dossiers `men` et `women`, sans qu'il
+soit possible d'en déduire une identité ou un genre déclaré. Le baoulé pourra
+être ajouté ultérieurement avec sa propre configuration.
 
 ## Limites connues
 
@@ -84,3 +87,11 @@ ultérieurement avec sa propre configuration.
 - un SHA-256 identique indique des octets identiques, pas nécessairement une
   transcription correcte ;
 - aucune métrique de modèle ne découle de cet audit.
+
+## Version locale v0.1
+
+Le manifeste `dioula_manifest_v0.1.csv` et ses métadonnées sont des artefacts
+locaux hors Git. Le statut est `frozen_candidate`, le périmètre est
+`local_research_only`, et les autorisations de publication du dataset et de
+tout modèle dérivé sont toutes deux `false`. Les 1 885 lignes sans audio
+récupérable et les deux lignes du conflit SHA-256 restent exclues.

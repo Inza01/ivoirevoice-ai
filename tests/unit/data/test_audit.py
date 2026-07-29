@@ -5,7 +5,12 @@ import wave
 from pathlib import Path
 
 from ivoirevoice.data.audit import run_audit, write_audit_outputs
-from ivoirevoice.data.settings import CurationSettings, DioulaDataSettings, SplitSettings
+from ivoirevoice.data.settings import (
+    CurationSettings,
+    DioulaDataSettings,
+    FreezeSettings,
+    SplitSettings,
+)
 
 
 def _write_wav(path: Path) -> None:
@@ -45,6 +50,7 @@ def test_audit_counts_unique_audio_and_writes_privacy_safe_reports(
         artifacts_root=artifacts_root,
         language="dyu",
         license_status="unknown",
+        consent_status="unknown",
         usage_scope="local_research_only",
         hash_audio=True,
         split=SplitSettings(
@@ -61,6 +67,21 @@ def test_audit_counts_unique_audio_and_writes_privacy_safe_reports(
             target_text="text_without_tones_nfc",
             recover_missing_audio=False,
             recovery_output_environment_variable="IVOIREVOICE_DIOULA_INTERIM_DIR",
+        ),
+        freeze=FreezeSettings(
+            split_comparison_relative_path=Path("reports/data_curation/splits.json"),
+            manifest_relative_path=Path("manifests/v0.1.csv"),
+            metadata_relative_path=Path("manifests/v0.1.json"),
+            report_relative_path=Path("reports/data_curation/v0.1.md"),
+            split_report_relative_path=Path("reports/data_curation/v0.1_split.json"),
+            dataset_version="0.1.0-local",
+            dataset_status="frozen_candidate",
+            split_strategy="B_15_3_3",
+            expected_audio_count=19_199,
+            expected_speaker_count=21,
+            expected_speaker_counts={"train": 15, "validation": 3, "test": 3},
+            publication_allowed=False,
+            model_derivative_publication_allowed=False,
         ),
         manifest_relative_path=Path("manifests/dioula_manifest_draft.csv"),
         report_relative_directory=Path("reports/data_audit"),

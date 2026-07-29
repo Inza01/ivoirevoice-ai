@@ -15,7 +15,7 @@ encore **aucun résultat final, benchmark ou modèle ASR entraîné**.
 - configuration YAML surchargeable par variables d'environnement ;
 - contrats pour les futurs backends ASR ;
 - API FastAPI et interface Gradio utilisant `DummyBackend` ;
-- pipeline reproductible de découverte, manifeste et audit dioula ;
+- pipeline reproductible de découverte, audit, curation et gel local dioula ;
 - tests hors ligne, sans GPU et sans téléchargement de modèle.
 
 Les datasets bruts, données préparées et checkpoints ne sont pas versionnés.
@@ -120,10 +120,39 @@ décision linguistique. Les rapports de curation et de comparaison des splits
 sont écrits sous `reports/data_curation/`, toujours relativement à
 `IVOIREVOICE_ARTIFACTS_DIR`.
 
-La récupération des audios manquants reste désactivée par défaut. La curation
-produit uniquement `missing_audio_recovery_plan.json`. Toute conversion exige
-à la fois `recover_missing_audio: true`, une destination externe configurée et
-l'option explicite `--execute` du module `ivoirevoice.data.recovery`.
+La récupération des audios manquants est verrouillée à `false` pendant cette
+phase. La curation produit uniquement `missing_audio_recovery_plan.json` et le
+gel refuse une configuration qui demanderait une récupération ou conversion.
+Une phase future explicitement autorisée devra d'abord lever ce verrou avant
+de pouvoir utiliser le module `ivoirevoice.data.recovery`.
+
+## Geler et valider le dataset dioula v0.1
+
+La décision humaine de Phase 3A.2 retient la stratégie B : 15 locuteurs en
+entraînement, 3 en validation et 3 en test. Le gel s'appuie sur l'affectation
+pseudonymisée déjà enregistrée dans le rapport de comparaison :
+
+```bash
+make freeze-dioula-v01
+make validate-dioula-v01
+```
+
+Le gel écrit, relativement à `IVOIREVOICE_ARTIFACTS_DIR` :
+
+- `manifests/dioula_manifest_v0.1.csv` ;
+- `manifests/dioula_dataset_v0.1_metadata.json` ;
+- `reports/data_curation/dioula_v0.1_report.md` ;
+- `reports/data_curation/dioula_v0.1_split_report.json`.
+
+La cible MVP est la variante NFC sans tons, privée du seul marqueur `↘`. Le
+marqueur reste dans `text_raw` et alimente le booléen `intonation_falling`.
+Les textes brut, avec tons NFC et sans tons NFC restent inchangés.
+
+La version `0.1.0-local` est immuable : relancer la même configuration est
+idempotent, tandis qu'une tentative d'écraser un artefact v0.1 par un contenu
+différent échoue. Une modification future exige un nouveau numéro de version.
+La validation bloque notamment les fuites de locuteur, doublons audio, chemins
+non relatifs, URLs, splits vides et toute autorisation de publication.
 
 ## Lancer les interfaces fictives
 

@@ -73,8 +73,31 @@ manifeste d'audit
        |
  candidat unique, split vide
        |
- comparaison A / B / C -> recommandation à valider humainement
+comparaison A / B / C -> recommandation à valider humainement
 ```
+
+La Phase 3A.2 ajoute `freeze.py`, qui applique l'affectation B validée, dérive
+la cible MVP sans le marqueur `↘`, puis écrit un manifeste local immuable et
+ses preuves de provenance.
+
+```text
+candidat unique + comparaison des splits
+                 |
+       stratégie B validée (15/3/3)
+                 |
+ conservation des textes + intonation_falling
+                 |
+ cible sans tons et sans ↘
+                 |
+ validations bloquantes (unicité, fuite, confidentialité)
+                 |
+ dataset dioula v0.1 local + métadonnées + rapports
+```
+
+Le validateur rouvre les sorties et les compare au candidat source, à
+l'affectation des locuteurs, au hash de la configuration et aux métadonnées.
+Un artefact v0.1 existant ne peut être remplacé que par un contenu strictement
+identique.
 
 ## Frontières
 

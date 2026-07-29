@@ -19,3 +19,16 @@ locuteurs en validation et test, la représentation des dossiers `men` et
 
 Les métriques ASR et critères d'acceptation seront définis avant les premières
 expériences. Aucun résultat n'est disponible pendant la Phase 2.
+
+## Dataset dioula v0.1
+
+La stratégie B validée humainement est figée avec 15/3/3 locuteurs et la seed
+42. Avant toute baseline, `make validate-dioula-v01` doit confirmer les
+19 199 audios uniques, les 21 locuteurs, l'absence de fuite, les chemins
+relatifs et les hashes de provenance.
+
+La cible d'apprentissage v0.1 est `text_without_tones_nfc` sans `↘`. Le texte
+brut et les deux variantes NFC restent conservés, avec `intonation_falling`
+pour rendre la décision réversible. Aucune expérience ne doit publier le
+corpus, le manifeste ou un modèle dérivé tant que la licence et le consentement
+restent inconnus.

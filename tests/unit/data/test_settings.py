@@ -12,6 +12,7 @@ dataset:
   language_code: dyu
   source_environment_variable: IVOIREVOICE_DIOULA_DATA_DIR
   license_status: unknown
+  consent_status: unknown
   usage_scope: local_research_only
   hash_audio: true
   split:
@@ -31,6 +32,23 @@ curation:
   target_text: text_without_tones_nfc
   recover_missing_audio: false
   recovery_output_environment_variable: IVOIREVOICE_DIOULA_INTERIM_DIR
+freeze:
+  split_comparison_path: reports/data_curation/split_comparison.json
+  manifest_path: manifests/dioula_v0.1.csv
+  metadata_path: manifests/dioula_v0.1_metadata.json
+  report_path: reports/data_curation/dioula_v0.1.md
+  split_report_path: reports/data_curation/dioula_v0.1_split.json
+  dataset_version: 0.1.0-local
+  dataset_status: frozen_candidate
+  split_strategy: B_15_3_3
+  expected_audio_count: 21
+  expected_speaker_count: 21
+  expected_speaker_counts:
+    train: 15
+    validation: 3
+    test: 3
+  publication_allowed: false
+  model_derivative_publication_allowed: false
 """
 
 
@@ -56,7 +74,13 @@ def test_loads_paths_only_from_environment(
     assert settings.dataset_root == dataset
     assert settings.artifacts_root == artifacts
     assert settings.hash_audio is False
+    assert settings.consent_status == "unknown"
     assert settings.usage_scope == "local_research_only"
+    assert settings.freeze.expected_speaker_counts == {
+        "train": 15,
+        "validation": 3,
+        "test": 3,
+    }
 
 
 def test_rejects_artifacts_inside_raw_corpus(

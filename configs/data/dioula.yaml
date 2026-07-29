@@ -5,6 +5,7 @@ dataset:
   text_column: transcription
   speaker_column: speaker_id
   license_status: unknown
+  consent_status: unknown
   usage_scope: local_research_only
   hash_audio: true
   split:
@@ -27,3 +28,21 @@ curation:
   target_text: text_without_tones_nfc
   recover_missing_audio: false
   recovery_output_environment_variable: IVOIREVOICE_DIOULA_INTERIM_DIR
+
+freeze:
+  split_comparison_path: reports/data_curation/split_comparison.json
+  manifest_path: manifests/dioula_manifest_v0.1.csv
+  metadata_path: manifests/dioula_dataset_v0.1_metadata.json
+  report_path: reports/data_curation/dioula_v0.1_report.md
+  split_report_path: reports/data_curation/dioula_v0.1_split_report.json
+  dataset_version: 0.1.0-local
+  dataset_status: frozen_candidate
+  split_strategy: B_15_3_3
+  expected_audio_count: 19199
+  expected_speaker_count: 21
+  expected_speaker_counts:
+    train: 15
+    validation: 3
+    test: 3
+  publication_allowed: false
+  model_derivative_publication_allowed: false

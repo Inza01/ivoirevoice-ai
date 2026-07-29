@@ -6,7 +6,8 @@ DIOULA_DATA_DIR ?= $(IVOIREVOICE_DIOULA_DATA_DIR)
 ARTIFACTS_DIR ?= $(if $(IVOIREVOICE_ARTIFACTS_DIR),$(IVOIREVOICE_ARTIFACTS_DIR),../artifacts)
 
 .PHONY: setup install-dev lint format typecheck test verify api ui audit-dioula
-.PHONY: manifest-dioula curate-dioula compare-dioula-splits
+.PHONY: manifest-dioula curate-dioula compare-dioula-splits freeze-dioula-v01
+.PHONY: validate-dioula-v01
 
 setup:
 	$(PYTHON) -m venv $(VENV)
@@ -58,3 +59,13 @@ compare-dioula-splits:
 	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
 	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
 	$(VENV_PYTHON) -m ivoirevoice.data.split_comparison --config configs/data/dioula.yaml
+
+freeze-dioula-v01:
+	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
+	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
+	$(VENV_PYTHON) -m ivoirevoice.data.freeze --config configs/data/dioula.yaml
+
+validate-dioula-v01:
+	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
+	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
+	$(VENV_PYTHON) -m ivoirevoice.data.freeze --config configs/data/dioula.yaml --validate-only

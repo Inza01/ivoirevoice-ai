@@ -37,6 +37,25 @@ class CurationSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class FreezeSettings:
+    """Immutable local dataset release policy and output paths."""
+
+    split_comparison_relative_path: Path
+    manifest_relative_path: Path
+    metadata_relative_path: Path
+    report_relative_path: Path
+    split_report_relative_path: Path
+    dataset_version: str
+    dataset_status: str
+    split_strategy: str
+    expected_audio_count: int
+    expected_speaker_count: int
+    expected_speaker_counts: dict[str, int]
+    publication_allowed: bool
+    model_derivative_publication_allowed: bool
+
+
+@dataclass(frozen=True, slots=True)
 class DioulaDataSettings:
     """Resolved local paths and audit options."""
 
@@ -44,10 +63,12 @@ class DioulaDataSettings:
     artifacts_root: Path
     language: str
     license_status: str
+    consent_status: str
     usage_scope: str
     hash_audio: bool
     split: SplitSettings
     curation: CurationSettings
+    freeze: FreezeSettings
     manifest_relative_path: Path
     report_relative_directory: Path
 
@@ -75,6 +96,26 @@ class DioulaDataSettings:
     def curation_report_directory(self) -> Path:
         return self.artifacts_root / self.curation.report_relative_directory
 
+    @property
+    def split_comparison_path(self) -> Path:
+        return self.artifacts_root / self.freeze.split_comparison_relative_path
+
+    @property
+    def frozen_manifest_path(self) -> Path:
+        return self.artifacts_root / self.freeze.manifest_relative_path
+
+    @property
+    def frozen_metadata_path(self) -> Path:
+        return self.artifacts_root / self.freeze.metadata_relative_path
+
+    @property
+    def frozen_report_path(self) -> Path:
+        return self.artifacts_root / self.freeze.report_relative_path
+
+    @property
+    def frozen_split_report_path(self) -> Path:
+        return self.artifacts_root / self.freeze.split_report_relative_path
+
 
 def _mapping(value: object, name: str) -> dict[str, Any]:
     if not isinstance(value, Mapping) or not all(isinstance(key, str) for key in value):
@@ -97,6 +138,20 @@ def _ratio(data: dict[str, Any], field: str) -> float:
     if not 0 < numeric_value < 1:
         raise ConfigError(f"Le champ 'dataset.split.{field}' doit être compris entre 0 et 1.")
     return numeric_value
+
+
+def _positive_int(data: dict[str, Any], field: str, section: str) -> int:
+    value = data.get(field)
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ConfigError(f"Le champ '{section}.{field}' doit être un entier positif.")
+    return value
+
+
+def _required_bool(data: dict[str, Any], field: str, section: str) -> bool:
+    value = data.get(field)
+    if not isinstance(value, bool):
+        raise ConfigError(f"Le champ '{section}.{field}' doit être un booléen.")
+    return value
 
 
 def _environment_path(variable_name: str) -> Path:
@@ -133,7 +188,12 @@ def load_dioula_settings(config_path: str | Path) -> DioulaDataSettings:
     dataset = _mapping(root.get("dataset"), "dataset")
     artifacts = _mapping(root.get("artifacts"), "artifacts")
     curation = _mapping(root.get("curation"), "curation")
+    freeze = _mapping(root.get("freeze"), "freeze")
     split_data = _mapping(dataset.get("split"), "dataset.split")
+    freeze_speaker_counts = _mapping(
+        freeze.get("expected_speaker_counts"),
+        "freeze.expected_speaker_counts",
+    )
 
     data_env = _required_string(
         dataset,
@@ -165,9 +225,59 @@ def load_dioula_settings(config_path: str | Path) -> DioulaDataSettings:
     recover_missing_audio = curation.get("recover_missing_audio")
     if not isinstance(recover_missing_audio, bool):
         raise ConfigError("Le champ 'curation.recover_missing_audio' doit être un booléen.")
+    if recover_missing_audio:
+        raise ConfigError("La Phase 3A.2 interdit la récupération et la conversion audio.")
     target_text = _required_string(curation, "target_text", "curation")
     if target_text != "text_without_tones_nfc":
         raise ConfigError("La Phase 3A.1 exige 'curation.target_text=text_without_tones_nfc'.")
+
+    license_status = _required_string(dataset, "license_status", "dataset")
+    consent_status = _required_string(dataset, "consent_status", "dataset")
+    usage_scope = _required_string(dataset, "usage_scope", "dataset")
+    if (license_status, consent_status, usage_scope) != (
+        "unknown",
+        "unknown",
+        "local_research_only",
+    ):
+        raise ConfigError(
+            "La Phase 3A.2 exige license_status=unknown, consent_status=unknown "
+            "et usage_scope=local_research_only."
+        )
+
+    split_strategy = _required_string(freeze, "split_strategy", "freeze")
+    if split_strategy != "B_15_3_3":
+        raise ConfigError("La Phase 3A.2 exige le split 'B_15_3_3'.")
+    dataset_version = _required_string(freeze, "dataset_version", "freeze")
+    dataset_status = _required_string(freeze, "dataset_status", "freeze")
+    if dataset_version != "0.1.0-local" or dataset_status != "frozen_candidate":
+        raise ConfigError(
+            "Le gel local exige dataset_version=0.1.0-local et dataset_status=frozen_candidate."
+        )
+    publication_allowed = _required_bool(freeze, "publication_allowed", "freeze")
+    derivative_publication_allowed = _required_bool(
+        freeze,
+        "model_derivative_publication_allowed",
+        "freeze",
+    )
+    if publication_allowed or derivative_publication_allowed:
+        raise ConfigError("La publication du corpus ou d'un modèle dérivé doit rester interdite.")
+    expected_speaker_counts = {
+        split_name: _positive_int(
+            freeze_speaker_counts,
+            split_name,
+            "freeze.expected_speaker_counts",
+        )
+        for split_name in ("train", "validation", "test")
+    }
+    expected_speaker_count = _positive_int(
+        freeze,
+        "expected_speaker_count",
+        "freeze",
+    )
+    if expected_speaker_counts != {"train": 15, "validation": 3, "test": 3}:
+        raise ConfigError("Le gel local exige exactement 15/3/3 locuteurs.")
+    if sum(expected_speaker_counts.values()) != expected_speaker_count:
+        raise ConfigError("Les nombres de locuteurs par split doivent couvrir le total attendu.")
 
     seed = split_data.get("seed")
     if not isinstance(seed, int) or isinstance(seed, bool):
@@ -182,8 +292,9 @@ def load_dioula_settings(config_path: str | Path) -> DioulaDataSettings:
         dataset_root=dataset_root,
         artifacts_root=artifacts_root,
         language=_required_string(dataset, "language_code", "dataset"),
-        license_status=_required_string(dataset, "license_status", "dataset"),
-        usage_scope=_required_string(dataset, "usage_scope", "dataset"),
+        license_status=license_status,
+        consent_status=consent_status,
+        usage_scope=usage_scope,
         hash_audio=hash_audio,
         split=SplitSettings(
             seed=seed,
@@ -219,6 +330,45 @@ def load_dioula_settings(config_path: str | Path) -> DioulaDataSettings:
                 "recovery_output_environment_variable",
                 "curation",
             ),
+        ),
+        freeze=FreezeSettings(
+            split_comparison_relative_path=_relative_output_path(
+                freeze,
+                "split_comparison_path",
+                "freeze",
+            ),
+            manifest_relative_path=_relative_output_path(
+                freeze,
+                "manifest_path",
+                "freeze",
+            ),
+            metadata_relative_path=_relative_output_path(
+                freeze,
+                "metadata_path",
+                "freeze",
+            ),
+            report_relative_path=_relative_output_path(
+                freeze,
+                "report_path",
+                "freeze",
+            ),
+            split_report_relative_path=_relative_output_path(
+                freeze,
+                "split_report_path",
+                "freeze",
+            ),
+            dataset_version=dataset_version,
+            dataset_status=dataset_status,
+            split_strategy=split_strategy,
+            expected_audio_count=_positive_int(
+                freeze,
+                "expected_audio_count",
+                "freeze",
+            ),
+            expected_speaker_count=expected_speaker_count,
+            expected_speaker_counts=expected_speaker_counts,
+            publication_allowed=publication_allowed,
+            model_derivative_publication_allowed=derivative_publication_allowed,
         ),
         manifest_relative_path=_relative_output_path(artifacts, "manifest_path"),
         report_relative_directory=_relative_output_path(artifacts, "report_directory"),
