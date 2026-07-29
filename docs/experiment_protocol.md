@@ -10,6 +10,12 @@
    pertinents lorsque les métadonnées et le consentement le permettent.
 6. Publier uniquement des métriques calculées sur des données traçables.
 
+Avant entraînement, le candidat dioula doit contenir un audio unique par ligne,
+aucun conflit de transcription et un split validé humainement. Les stratégies
+17/2/2, 15/3/3 et une recherche visant 75 % / 12,5 % / 12,5 % de durée doivent
+être comparées. La recommandation privilégie zéro fuite, au moins trois
+locuteurs en validation et test, la représentation des dossiers `men` et
+`women`, puis l'équilibre des durées.
+
 Les métriques ASR et critères d'acceptation seront définis avant les premières
 expériences. Aucun résultat n'est disponible pendant la Phase 2.
-

@@ -46,6 +46,12 @@ les espaces et retours de ligne sont normalisés. Il ne supprime aucun ton. Les
 chemins audio et JSON sont relatifs à la racine du corpus. Les identifiants de
 locuteurs sont des pseudonymes stables dérivés de la structure locale.
 
+Le candidat d'entraînement conserve également une variante NFC sans tons,
+reliée aux fichiers `text-no-tones` du corpus. Pour le premier MVP uniquement,
+`target_text_mvp` utilise cette variante afin de réduire la complexité du
+vocabulaire. La variante tonale et le texte brut restent présents pour rendre
+une comparaison ultérieure possible.
+
 ## Confidentialité et publication
 
 - ne jamais publier ni journaliser les URL complètes `audioSrc` ;
@@ -54,6 +60,10 @@ locuteurs sont des pseudonymes stables dérivés de la structure locale.
 - ne jamais chercher à réidentifier les personnes ;
 - ne partager que des agrégats et de petites fixtures artificielles ;
 - conserver les données brutes inchangées.
+
+Les expériences locales autorisées par le formateur restent limitées à
+`local_research_only`. Cette instruction ne remplace pas une licence et ne
+permet pas de publier un modèle dérivé.
 
 ## Partitionnement
 
@@ -68,6 +78,9 @@ ultérieurement avec sa propre configuration.
 - l'inférence des locuteurs repose actuellement sur la structure des dossiers ;
 - les groupes trop petits limitent la stratification ;
 - les fichiers manquants, ambigus ou corrompus doivent être examinés ;
+- les conflits entre un même audio et plusieurs transcriptions sont mis en
+  quarantaine ;
+- les références répétées et les doublons SHA-256 sont exclus du candidat ;
 - un SHA-256 identique indique des octets identiques, pas nécessairement une
   transcription correcte ;
 - aucune métrique de modèle ne découle de cet audit.

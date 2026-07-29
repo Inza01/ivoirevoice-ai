@@ -23,6 +23,14 @@ artifacts:
   root_environment_variable: IVOIREVOICE_ARTIFACTS_DIR
   manifest_path: manifests/dioula.csv
   report_directory: reports/data_audit
+curation:
+  source_manifest_path: manifests/dioula.csv
+  candidate_manifest_path: manifests/dioula_candidate.csv
+  metadata_path: manifests/metadata.json
+  report_directory: reports/data_curation
+  target_text: text_without_tones_nfc
+  recover_missing_audio: false
+  recovery_output_environment_variable: IVOIREVOICE_DIOULA_INTERIM_DIR
 """
 
 

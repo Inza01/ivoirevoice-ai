@@ -94,6 +94,37 @@ Le split reste vide dans le manifeste tant que sa proposition n'a pas été
 validée humainement. Le hash SHA-256 peut être désactivé avec
 `IVOIREVOICE_HASH_AUDIO=false`.
 
+## Curater le candidat d'entraînement dioula
+
+Après génération du manifeste d'audit :
+
+```bash
+make curate-dioula
+make compare-dioula-splits
+```
+
+La curation conserve une ligne par chemin audio, puis une ligne par SHA-256.
+Elle met en quarantaine tout audio associé à des transcriptions normalisées
+différentes. Un `sentence_id` répété avec des audios distincts est conservé.
+
+Le candidat local est écrit dans
+`manifests/dioula_manifest_curated_candidate.csv`. Il conserve :
+
+- `text_raw` inchangé ;
+- `text_with_tones_nfc` ;
+- `text_without_tones_nfc` ;
+- `target_text_mvp`, égal pour le premier MVP à la variante sans tons.
+
+Ce choix sans tons est une simplification technique réversible, pas une
+décision linguistique. Les rapports de curation et de comparaison des splits
+sont écrits sous `reports/data_curation/`, toujours relativement à
+`IVOIREVOICE_ARTIFACTS_DIR`.
+
+La récupération des audios manquants reste désactivée par défaut. La curation
+produit uniquement `missing_audio_recovery_plan.json`. Toute conversion exige
+à la fois `recover_missing_audio: true`, une destination externe configurée et
+l'option explicite `--execute` du module `ivoirevoice.data.recovery`.
+
 ## Lancer les interfaces fictives
 
 API :

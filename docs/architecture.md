@@ -53,6 +53,29 @@ corpus brut (lecture seule)
 - `audit.py` produit les statistiques et rapports ;
 - `split.py` propose des groupes de locuteurs disjoints.
 
+La Phase 3A.1 ajoute :
+
+- `curation.py` pour l'éligibilité, les variantes textuelles, la
+  déduplication chemin/SHA-256 et la quarantaine des conflits ;
+- `split_comparison.py` pour comparer les stratégies 17/2/2, 15/3/3 et la
+  recherche orientée durée ;
+- `recovery.py` pour une conversion ffmpeg doublement verrouillée, jamais
+  exécutée implicitement.
+
+```text
+manifeste d'audit
+       |
+ éligibilité + variantes textuelles
+       |
+ déduplication audio_path
+       |
+ déduplication SHA-256 ---- conflits -> quarantaine
+       |
+ candidat unique, split vide
+       |
+ comparaison A / B / C -> recommandation à valider humainement
+```
+
 ## Frontières
 
 - `data/` : découverte, validation et contrats des corpus ;

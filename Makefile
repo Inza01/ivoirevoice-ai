@@ -5,7 +5,8 @@ VENV_BIN := $(VENV)/bin
 DIOULA_DATA_DIR ?= $(IVOIREVOICE_DIOULA_DATA_DIR)
 ARTIFACTS_DIR ?= $(if $(IVOIREVOICE_ARTIFACTS_DIR),$(IVOIREVOICE_ARTIFACTS_DIR),../artifacts)
 
-.PHONY: setup install-dev lint format typecheck test verify api ui audit-dioula manifest-dioula
+.PHONY: setup install-dev lint format typecheck test verify api ui audit-dioula
+.PHONY: manifest-dioula curate-dioula compare-dioula-splits
 
 setup:
 	$(PYTHON) -m venv $(VENV)
@@ -47,3 +48,13 @@ manifest-dioula:
 	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
 	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
 	$(VENV_PYTHON) -m ivoirevoice.data.manifest --config configs/data/dioula.yaml
+
+curate-dioula:
+	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
+	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
+	$(VENV_PYTHON) -m ivoirevoice.data.curation --config configs/data/dioula.yaml
+
+compare-dioula-splits:
+	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
+	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
+	$(VENV_PYTHON) -m ivoirevoice.data.split_comparison --config configs/data/dioula.yaml

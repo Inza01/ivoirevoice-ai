@@ -5,7 +5,7 @@ import wave
 from pathlib import Path
 
 from ivoirevoice.data.audit import run_audit, write_audit_outputs
-from ivoirevoice.data.settings import DioulaDataSettings, SplitSettings
+from ivoirevoice.data.settings import CurationSettings, DioulaDataSettings, SplitSettings
 
 
 def _write_wav(path: Path) -> None:
@@ -52,6 +52,15 @@ def test_audit_counts_unique_audio_and_writes_privacy_safe_reports(
             train_ratio=0.8,
             validation_ratio=0.1,
             test_ratio=0.1,
+        ),
+        curation=CurationSettings(
+            source_manifest_relative_path=Path("manifests/draft.csv"),
+            candidate_manifest_relative_path=Path("manifests/candidate.csv"),
+            metadata_relative_path=Path("manifests/metadata.json"),
+            report_relative_directory=Path("reports/data_curation"),
+            target_text="text_without_tones_nfc",
+            recover_missing_audio=False,
+            recovery_output_environment_variable="IVOIREVOICE_DIOULA_INTERIM_DIR",
         ),
         manifest_relative_path=Path("manifests/dioula_manifest_draft.csv"),
         report_relative_directory=Path("reports/data_audit"),
