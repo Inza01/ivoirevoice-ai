@@ -26,6 +26,8 @@ venv/
 /cache/
 /outputs/
 /runs/
+/reports/data/manual_validation_annotations.json
+/reports/data/manual_validation_report.md
 *.pt
 *.pth
 *.ckpt

@@ -9,13 +9,17 @@ retourne un `TranscriptionResult` commun. `ModelRegistry` associe un nom stable
 modifier l'API, l'interface ou le schéma de résultat.
 
 ```text
-FastAPI / Gradio
-       |
- ModelRegistry
-       |
-   ASRBackend
-       |
- Dummy (actuel) / Whisper (futur) / Wav2Vec2 (futur)
+FastAPI                    Gradio
+   |                          |
+ Dummy            ComparisonService
+                              |
+                    TranscriptionService
+                              |
+                       ModelRegistry
+                              |
+                         ASRBackend
+                              |
+                Whisper Tiny / Small / adapté futur
 ```
 
 La configuration principale vient de `configs/project.yaml`. Les variables
@@ -99,11 +103,74 @@ l'affectation des locuteurs, au hash de la configuration et aux métadonnées.
 Un artefact v0.1 existant ne peut être remplacé que par un contenu strictement
 identique.
 
+## Baselines ASR dioula
+
+La Phase 4A ajoute un backend Whisper chargé paresseusement et une chaîne
+d'évaluation locale qui ne force pas de token de langue `dyu`.
+
+```text
+manifest v0.1 + métadonnées immuables
+                  |
+       contrôle du hash et de la gouvernance
+                  |
+      sélection test smoke / pilot / full
+                  |
+       Whisper épinglé + audio 16 kHz
+                  |
+ prédictions privées enregistrées progressivement
+                  |
+ WER / CER / locuteurs / latence / RTF
+                  |
+       synthèse agrégée sans transcription
+```
+
+`environment.py` décrit le runtime sans chemin personnel,
+`compatibility.py` consigne les modèles retenus ou exclus, `baseline.py`
+valide le split test et gère la reprise, `metrics.py` calcule les agrégats, et
+`comparison.py` refuse de comparer des pilotes issus de sélections différentes.
+La révision du modèle, le commit Git, l'état propre ou sale du dépôt et
+l'empreinte SHA-256 des sources sont conservés avec chaque run.
+
+Les trois niveaux sont verrouillés : six audios pour `smoke`, 150 pour
+`pilot`, et le test entier uniquement avec une confirmation explicite. Les
+tests unitaires injectent une pipeline factice et ne téléchargent aucun poids.
+
+## Interface de démonstration
+
+La Phase 5A place toute la logique hors de Gradio :
+
+```text
+Gradio Blocks
+     |
+ComparisonService  ---- isolement des erreurs modèle par modèle
+     |
+TranscriptionService ---- validation taille, durée, extension et audio_id
+     |
+ModelRegistry ---- fabriques paresseuses configurées en YAML
+     |
+ASRBackend ---- load / transcribe / unload séquentiels
+     |
+EvaluationService ---- normalisation, WER, CER et différences
+     |
+ExportService ---- JSON, CSV, TXT et aperçus temporaires anonymisés
+```
+
+`configs/ui/models.yaml` contient les deux baselines actives et une entrée
+adaptée désactivée. Cette dernière peut être activée via une configuration
+externe après fine-tuning, sans dépendance directe entre l'UI et Whisper.
+
+Le benchmark lit exclusivement les rapports JSON agrégés. L'analyse d'erreurs
+lit les prédictions privées localement et n'affiche qu'un identifiant
+anonymisé. Un aperçu audio est copié vers un fichier temporaire au nom
+anonymisé, puis supprimé. Le serveur écoute sur l'interface loopback et le
+partage public Gradio est explicitement désactivé.
+
 ## Frontières
 
 - `data/` : découverte, validation et contrats des corpus ;
 - `models/` : contrat, registre et backends ;
-- `evaluation/` : futures métriques reproductibles ;
+- `evaluation/` : sélections, métriques, diagnostics et comparaisons ;
+- `services/` : orchestration, métriques applicatives et exports ;
 - `api/` et `ui/` : adaptateurs d'entrée, sans logique ML spécifique.
 
 Le stockage des données, checkpoints et sorties reste hors Git.

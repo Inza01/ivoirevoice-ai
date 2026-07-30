@@ -1,0 +1,20 @@
+experiment:
+  id: baseline-dy-whisper-small
+  language: dyu
+  mode: evaluation
+  split: test
+  seed: 42
+  model_config: configs/models/whisper_small.yaml
+  expected_model_id: openai/whisper-small
+  manifest_path: manifests/dioula_manifest_v0.1.csv
+  dataset_metadata_path: manifests/dioula_dataset_v0.1_metadata.json
+  output_directory: baselines
+  report_directory: reports/baselines
+  expected_test_audio_count: 2774
+  expected_test_speaker_count: 3
+  smoke_per_speaker: 2
+  pilot_per_speaker: 50
+  timeout_seconds: 1200
+  lowercase: true
+  remove_punctuation: true
+  publication_allowed: false

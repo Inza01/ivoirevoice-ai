@@ -1,0 +1,27 @@
+experiment:
+  id: smoke-overfit-whisper-tiny-dy
+  language: dyu
+  mode: smoke_overfit
+  split: train
+  seed: 42
+  model_config: configs/models/whisper_tiny.yaml
+  expected_model_id: openai/whisper-tiny
+  manifest_path: manifests/dioula_manifest_v0.1.csv
+  dataset_metadata_path: manifests/dioula_dataset_v0.1_metadata.json
+  pilot_prediction_files:
+    - baselines/baseline-dy-whisper-tiny-pilot/predictions_private.csv
+    - baselines/baseline-dy-whisper-small-pilot/predictions_private.csv
+  output_directory: training/smoke_overfit_whisper_tiny_dy
+  sample_count: 16
+  minimum_correct_samples: 10
+  canonical_text_column: target_text_mvp
+  max_steps: 80
+  batch_size: 4
+  learning_rate: 0.0001
+  max_grad_norm: 1.0
+  logging_steps: 1
+  evaluation_steps: 10
+  mixed_precision: auto
+  stop_on_nan: true
+  save_model: false
+  publication_allowed: false

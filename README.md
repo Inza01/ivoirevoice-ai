@@ -5,17 +5,23 @@ transcription vocale adaptée au contexte ivoirien. Le MVP cible le français
 (`fr`) et le dioula (`dyu`). Le baoulé est prévu comme extension future, sans
 modifier le cœur des interfaces.
 
-Cette version comprend le squelette logiciel et le pipeline d'audit local du
-corpus dioula. Elle utilise uniquement un backend ASR fictif et ne fournit
-encore **aucun résultat final, benchmark ou modèle ASR entraîné**.
+Cette version comprend le pipeline de données local, une première baseline
+ASR dioula reproductible et un tableau de bord Gradio local. Whisper Tiny et
+Whisper Small ont été évalués sans entraînement sur un pilote privé de
+150 audios. L'API FastAPI reste branchée sur le backend fictif ; l'interface
+Gradio utilise les modèles réels à la demande.
 
 ## Périmètre actuel
 
 - package Python sous `src/ivoirevoice/` ;
 - configuration YAML surchargeable par variables d'environnement ;
 - contrats pour les futurs backends ASR ;
-- API FastAPI et interface Gradio utilisant `DummyBackend` ;
+- API FastAPI utilisant `DummyBackend` ;
+- interface Gradio de comparaison Tiny/Small à cinq onglets ;
 - pipeline reproductible de découverte, audit, curation et gel local dioula ;
+- backend Whisper local et modèles épinglés par révision ;
+- smoke tests et pilotes déterministes sur le seul split test ;
+- WER, CER, métriques par locuteur, latence, RTF et reprise progressive ;
 - tests hors ligne, sans GPU et sans téléchargement de modèle.
 
 Les datasets bruts, données préparées et checkpoints ne sont pas versionnés.
@@ -31,10 +37,10 @@ make install-dev
 ```
 
 L'installation de développement n'installe pas les dépendances ML lourdes.
-Pour préparer ultérieurement un environnement ML :
+Pour préparer un environnement ML :
 
 ```bash
-.venv/bin/python -m pip install -e ".[core,ml]"
+.venv/bin/python -m pip install -e ".[core,data,ml,ui]"
 ```
 
 Copiez `.env.example` vers `.env` si nécessaire, puis exportez les variables
@@ -51,9 +57,10 @@ make test
 make verify
 ```
 
-Les tests ASR utilisent exclusivement `DummyBackend` et les tests de données
-créent de petits WAV et JSON artificiels. Ils ne lisent pas le corpus réel et
-ne nécessitent ni connexion internet, ni GPU, ni modèle téléchargé.
+Les tests ASR utilisent `DummyBackend` ou une pipeline Whisper injectée et
+factice. Les tests de données créent de petits WAV et JSON artificiels. Ils ne
+lisent pas le corpus réel et ne nécessitent ni connexion internet, ni GPU, ni
+modèle téléchargé.
 
 ## Auditer le corpus dioula
 
@@ -154,7 +161,74 @@ différent échoue. Une modification future exige un nouveau numéro de version.
 La validation bloque notamment les fuites de locuteur, doublons audio, chemins
 non relatifs, URLs, splits vides et toute autorisation de publication.
 
-## Lancer les interfaces fictives
+## Exécuter les baselines dioula
+
+Définissez également un cache modèle hors du dépôt :
+
+```bash
+export IVOIREVOICE_MODEL_CACHE_DIR="/chemin/vers/cache/models"
+
+make check-ml-environment
+make inspect-baseline-models
+make baseline-dy-smoke MODEL=whisper_tiny
+make baseline-dy-pilot MODEL=whisper_tiny
+make baseline-dy-smoke MODEL=whisper_small
+make baseline-dy-pilot MODEL=whisper_small
+make compare-dy-baselines
+```
+
+Le niveau `smoke` utilise deux audios courts par locuteur test ; le niveau
+`pilot` en utilise 50 par locuteur avec une sélection déterministe couvrant
+plusieurs durées. Le niveau complet est verrouillé :
+
+```bash
+make baseline-dy-full MODEL=whisper_tiny CONFIRM_FULL=1
+```
+
+Il ne doit être lancé qu'après examen du pilote. Les prédictions, références
+et analyses textuelles restent privées sous `artifacts/baselines/`. Seules les
+synthèses agrégées de `artifacts/reports/baselines/` sont partageables.
+
+Sur le pilote local de 150 audios, Whisper Tiny obtient un WER micro de
+114,36 %, un CER de 73,74 % et un RTF de 0,0296. Whisper Small obtient
+respectivement 152,35 %, 86,11 % et 0,0900. Les deux modèles sont donc très
+insuffisants sans adaptation ; Tiny est retenu pour la première validation de
+fine-tuning, qui ne fait pas partie de cette phase.
+
+## Lancer le tableau de bord local
+
+L'interface exige les variables de données, d'artefacts et de cache déjà
+utilisées par les baselines :
+
+```bash
+make ui \
+  DIOULA_DATA_DIR="/chemin/vers/voices_data" \
+  ARTIFACTS_DIR="/chemin/vers/artifacts" \
+  MODEL_CACHE_DIR="/chemin/vers/cache/models"
+```
+
+Elle écoute uniquement sur `127.0.0.1:7860`, sans lien public Gradio. Ses cinq
+onglets permettent :
+
+1. de transcrire un enregistrement ou un fichier avec Tiny et Small ;
+2. de consulter le benchmark structuré et trois graphiques ;
+3. d'analyser localement les erreurs des 150 échantillons privés ;
+4. de calculer des métriques personnalisées et exporter JSON/CSV/TXT ;
+5. de présenter le projet, son architecture et ses limites.
+
+Le WER et le CER sont calculés uniquement lorsqu'une référence est fournie.
+Les modèles sont chargés puis libérés séquentiellement. L'échec de Small ne
+supprime pas le résultat de Tiny. Les formats acceptés sont WAV, MP3, M4A et
+OGG, avec une limite de 25 Mio et 180 secondes.
+
+Un futur modèle adapté peut être ajouté sans changer le code : ajoutez sa
+configuration, renseignez `IVOIREVOICE_FINETUNED_MODEL_CONFIG`, puis activez
+son entrée dans `configs/ui/models.yaml`.
+
+Le guide de présentation est disponible dans
+[docs/demo_guide.md](docs/demo_guide.md).
+
+## Lancer l'API fictive
 
 API :
 
@@ -166,14 +240,8 @@ Les routes sont `GET /health`, `GET /models` et `POST /transcribe`. La route de
 transcription attend un formulaire multipart avec `file` et `language` (`fr`
 ou `dyu`).
 
-Interface Gradio :
-
-```bash
-make ui
-```
-
-Le texte affiché est explicitement fictif. Les implémentations Whisper et
-Wav2Vec2 ne font pas partie de cette phase.
+L'API conserve un texte explicitement fictif. Le branchement du service de
+comparaison dans l'API pourra être réalisé après stabilisation de l'interface.
 
 ## Documentation
 

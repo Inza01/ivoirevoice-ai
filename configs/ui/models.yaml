@@ -1,0 +1,47 @@
+ui:
+  max_audio_size_mb: 25
+  max_audio_duration_seconds: 180
+  allowed_extensions:
+    - .wav
+    - .mp3
+    - .m4a
+    - .ogg
+
+models:
+  whisper_tiny_baseline:
+    display_name: Whisper Tiny — baseline
+    backend: whisper
+    status: baseline
+    model_id: openai/whisper-tiny
+    revision: be0ba7c2f24f0127b27863a23a08002af4c2c279
+    config_path: configs/models/whisper_tiny.yaml
+    device: auto
+    languages:
+      - fr
+      - dyu
+    enabled: true
+
+  whisper_small_baseline:
+    display_name: Whisper Small — baseline
+    backend: whisper
+    status: baseline
+    model_id: openai/whisper-small
+    revision: 973afd24965f72e36ca33b3055d56a652f456b4d
+    config_path: configs/models/whisper_small.yaml
+    device: auto
+    languages:
+      - fr
+      - dyu
+    enabled: true
+
+  whisper_tiny_dioula:
+    display_name: Whisper Tiny — adapté au dioula
+    backend: whisper
+    status: adapted
+    model_id: local/whisper-tiny-dioula
+    revision: local
+    config_path_environment_variable: IVOIREVOICE_FINETUNED_MODEL_CONFIG
+    device: auto
+    languages:
+      - dyu
+    enabled: false

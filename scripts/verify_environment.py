@@ -27,7 +27,7 @@ def main() -> int:
         print("ERREUR: le backend par défaut n'est pas enregistré.")
         return 1
 
-    print("Environnement léger valide (aucun modèle téléchargé).")
+    print("Environnement léger valide (aucun téléchargement requis).")
     return 0
 
 

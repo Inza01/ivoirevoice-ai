@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-07-30T10:00:57.253775+00:00",
+  "dataset_version": "0.1.0-local",
+  "manifest_sha256": "3b680d108b8d2d106bf04708d79ea54599c9f998cba289356ae4ba0ff36e5572",
+  "counts": {
+    "manifest_rows": 19199,
+    "rows_by_split": {
+      "test": 2774,
+      "train": 13764,
+      "validation": 2661
+    },
+    "speakers_by_split": {
+      "train": 15,
+      "validation": 3,
+      "test": 3
+    },
+    "pilot_unique_audio_ids": 150,
+    "smoke_selected_audio_ids": 16
+  },
+  "checks": {
+    "speaker_ids_disjoint_across_splits": {
+      "passed": true,
+      "violation_count": 0
+    },
+    "audio_sha256_disjoint_across_splits": {
+      "passed": true,
+      "violation_count": 0
+    },
+    "pilot_membership_resolved": {
+      "passed": true,
+      "violation_count": 0
+    },
+    "pilot_exclusively_test": {
+      "passed": true,
+      "violation_count": 0
+    },
+    "smoke_exclusively_train": {
+      "passed": true,
+      "violation_count": 0
+    },
+    "smoke_disjoint_from_test_ids": {
+      "passed": true,
+      "violation_count": 0
+    },
+    "smoke_disjoint_from_test_hashes": {
+      "passed": true,
+      "violation_count": 0
+    },
+    "smoke_disjoint_from_pilot": {
+      "passed": true,
+      "violation_count": 0
+    }
+  },
+  "overall_passed": true,
+  "privacy": {
+    "contains_private_paths": false,
+    "contains_audio_or_speaker_ids": false
+  }
+}
