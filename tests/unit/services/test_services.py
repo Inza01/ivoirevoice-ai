@@ -226,8 +226,10 @@ def test_real_model_catalog_registers_factories_without_loading_weights() -> Non
     assert [model.key for model in catalog.enabled_models] == [
         "whisper_tiny_baseline",
         "whisper_small_baseline",
+        "whisper_tiny_dioula_pilot",
     ]
     assert registry.available_models == (
         "whisper_small_baseline",
         "whisper_tiny_baseline",
+        "whisper_tiny_dioula_pilot",
     )

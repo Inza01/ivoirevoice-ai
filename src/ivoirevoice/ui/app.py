@@ -17,8 +17,9 @@ from ivoirevoice.services.evaluation_service import (
     BenchmarkView,
     ErrorSample,
     EvaluationService,
+    load_adaptation_error_samples,
     load_benchmark_view,
-    load_error_samples,
+    load_pilot_adaptation_benchmark,
 )
 from ivoirevoice.services.export_service import ExportService
 from ivoirevoice.services.transcription_service import (
@@ -53,6 +54,14 @@ BENCHMARK_HEADERS = [
     "Date",
     "Seed",
     "Révision",
+    "Loss validation",
+    "Substitutions",
+    "Insertions",
+    "Suppressions",
+    "Réduction abs. WER (points)",
+    "Réduction rel. WER (%)",
+    "Réduction abs. CER (points)",
+    "Réduction rel. CER (%)",
 ]
 BENCHMARK_DATATYPES: tuple[Literal["str", "number", "bool", "date", "markdown", "html"], ...] = (
     "str",
@@ -67,6 +76,14 @@ BENCHMARK_DATATYPES: tuple[Literal["str", "number", "bool", "date", "markdown", 
     "str",
     "number",
     "str",
+    "number",
+    "number",
+    "number",
+    "number",
+    "number",
+    "number",
+    "number",
+    "number",
 )
 
 
@@ -78,8 +95,10 @@ class DemoServices:
     comparison: ComparisonService
     evaluation: EvaluationService
     exports: ExportService
-    benchmark: BenchmarkView | None
-    benchmark_error: str | None
+    pilot_benchmark: BenchmarkView | None
+    pilot_benchmark_error: str | None
+    historical_benchmark: BenchmarkView | None
+    historical_benchmark_error: str | None
     error_samples: tuple[ErrorSample, ...]
     error_samples_error: str | None
     dataset_root: Path | None
@@ -100,26 +119,36 @@ def build_demo_services(catalog_path: str | Path | None = None) -> DemoServices:
     artifacts_root = _external_root("IVOIREVOICE_ARTIFACTS_DIR")
     dataset_root = _external_root("IVOIREVOICE_DIOULA_DATA_DIR")
 
-    benchmark: BenchmarkView | None = None
-    benchmark_error: str | None = None
+    repository_root = Path(__file__).resolve().parents[3]
+    pilot_benchmark: BenchmarkView | None = None
+    pilot_benchmark_error: str | None = None
+    historical_benchmark: BenchmarkView | None = None
+    historical_benchmark_error: str | None = None
     error_samples: tuple[ErrorSample, ...] = ()
     error_samples_error: str | None = None
+    try:
+        pilot_benchmark = load_pilot_adaptation_benchmark(
+            repository_root / "reports/training/pilot_comparison.json"
+        )
+    except ConfigError as exc:
+        pilot_benchmark_error = str(exc)
     if artifacts_root is None:
-        benchmark_error = "IVOIREVOICE_ARTIFACTS_DIR n'est pas configuré."
-        error_samples_error = benchmark_error
+        historical_benchmark_error = "IVOIREVOICE_ARTIFACTS_DIR n'est pas configuré."
+        error_samples_error = historical_benchmark_error
     else:
         try:
-            benchmark = load_benchmark_view(
+            historical_benchmark = load_benchmark_view(
                 artifacts_root / "reports/baselines/baseline_dy_pilot_comparison.json",
                 artifacts_root / "reports/baselines/environment_report.json",
             )
         except ConfigError as exc:
-            benchmark_error = str(exc)
+            historical_benchmark_error = str(exc)
         try:
-            error_samples = load_error_samples(
-                artifacts_root / "baselines/baseline-dy-whisper-tiny-pilot/predictions_private.csv",
+            error_samples = load_adaptation_error_samples(
                 artifacts_root
-                / "baselines/baseline-dy-whisper-small-pilot/predictions_private.csv",
+                / "training/pilot_finetune_whisper_tiny_dy"
+                / "pilot_validation_predictions.csv",
+                artifacts_root / "manifests/dioula_manifest_v0.1.csv",
             )
         except ConfigError as exc:
             error_samples_error = str(exc)
@@ -131,8 +160,10 @@ def build_demo_services(catalog_path: str | Path | None = None) -> DemoServices:
         comparison=ComparisonService(transcription, evaluation),
         evaluation=evaluation,
         exports=exports,
-        benchmark=benchmark,
-        benchmark_error=benchmark_error,
+        pilot_benchmark=pilot_benchmark,
+        pilot_benchmark_error=pilot_benchmark_error,
+        historical_benchmark=historical_benchmark,
+        historical_benchmark_error=historical_benchmark_error,
         error_samples=error_samples,
         error_samples_error=error_samples_error,
         dataset_root=dataset_root,
@@ -247,18 +278,16 @@ def _reset(
 
 
 def _benchmark_components(
-    interface_services: DemoServices,
+    view: BenchmarkView | None,
+    error: str | None,
 ) -> tuple[list[list[Any]], Any, str]:
     return (
-        benchmark_rows(interface_services.benchmark),
+        benchmark_rows(view),
         pd.DataFrame(
-            benchmark_plot_rows(interface_services.benchmark),
+            benchmark_plot_rows(view),
             columns=["Modèle", "WER (%)", "CER (%)", "RTF"],
         ),
-        render_benchmark_context(
-            interface_services.benchmark,
-            interface_services.benchmark_error,
-        ),
+        render_benchmark_context(view, error),
     )
 
 
@@ -269,8 +298,13 @@ def create_interface(services: DemoServices | None = None) -> Any:
     enabled_models = selected_services.catalog.enabled_models
     model_choices = [(model.display_name, model.key) for model in enabled_models]
     default_models = [model.key for model in enabled_models]
-    benchmark_table_rows, benchmark_charts, benchmark_context = _benchmark_components(
-        selected_services
+    pilot_rows, pilot_charts, pilot_context = _benchmark_components(
+        selected_services.pilot_benchmark,
+        selected_services.pilot_benchmark_error,
+    )
+    historical_rows, historical_charts, historical_context = _benchmark_components(
+        selected_services.historical_benchmark,
+        selected_services.historical_benchmark_error,
     )
     error_choices = [sample.audio_id for sample in selected_services.error_samples]
 
@@ -375,41 +409,85 @@ def create_interface(services: DemoServices | None = None) -> Any:
             )
 
         with gr.Tab("2 · Benchmark"):
-            gr.HTML(benchmark_context)
+            gr.Markdown(
+                "## Expérience A — validation pilote\n\n"
+                "Tiny baseline et Tiny adapté sont comparés sur les **mêmes 600 audios "
+                "de validation** et les mêmes références."
+            )
+            gr.HTML(pilot_context)
             gr.Dataframe(
-                value=benchmark_table_rows,
+                value=pilot_rows,
                 headers=BENCHMARK_HEADERS,
                 datatype=BENCHMARK_DATATYPES,
                 interactive=False,
                 wrap=True,
-                label="Résultats structurés du pilote",
+                label="Expérience A — Tiny baseline vs Tiny adapté",
             )
             gr.Markdown(
-                "**Lecture : plus le WER, le CER et le RTF sont faibles, "
-                "meilleur est le résultat.**"
+                "**Une valeur WER, CER ou RTF plus faible est meilleure.**"
             )
             with gr.Row():
                 gr.BarPlot(
-                    value=benchmark_charts,
+                    value=pilot_charts,
                     x="Modèle",
                     y="WER (%)",
-                    title="WER par modèle — plus faible = meilleur",
+                    title="Expérience A — WER",
                     y_title="WER (%)",
                     height=300,
                 )
                 gr.BarPlot(
-                    value=benchmark_charts,
+                    value=pilot_charts,
                     x="Modèle",
                     y="CER (%)",
-                    title="CER par modèle — plus faible = meilleur",
+                    title="Expérience A — CER",
                     y_title="CER (%)",
                     height=300,
                 )
                 gr.BarPlot(
-                    value=benchmark_charts,
+                    value=pilot_charts,
                     x="Modèle",
                     y="RTF",
-                    title="RTF par modèle — plus faible = meilleur",
+                    title="Expérience A — RTF",
+                    y_title="RTF",
+                    height=300,
+                )
+            gr.Markdown(
+                "## Expérience B — pilote historique\n\n"
+                "Tiny baseline et Small baseline sont comparés sur les **150 audios du "
+                "pilote historique**. Cette expérience est distincte de la validation "
+                "de l’Expérience A."
+            )
+            gr.HTML(historical_context)
+            gr.Dataframe(
+                value=historical_rows,
+                headers=BENCHMARK_HEADERS,
+                datatype=BENCHMARK_DATATYPES,
+                interactive=False,
+                wrap=True,
+                label="Expérience B — Tiny baseline vs Small baseline",
+            )
+            with gr.Row():
+                gr.BarPlot(
+                    value=historical_charts,
+                    x="Modèle",
+                    y="WER (%)",
+                    title="Expérience B — WER",
+                    y_title="WER (%)",
+                    height=300,
+                )
+                gr.BarPlot(
+                    value=historical_charts,
+                    x="Modèle",
+                    y="CER (%)",
+                    title="Expérience B — CER",
+                    y_title="CER (%)",
+                    height=300,
+                )
+                gr.BarPlot(
+                    value=historical_charts,
+                    x="Modèle",
+                    y="RTF",
+                    title="Expérience B — RTF",
                     y_title="RTF",
                     height=300,
                 )

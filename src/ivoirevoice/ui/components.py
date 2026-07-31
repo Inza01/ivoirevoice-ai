@@ -49,6 +49,9 @@ APP_CSS = """
   box-shadow: 0 8px 24px rgba(23, 33, 27, .07);
 }
 .iv-model-card.failed { border-top-color: #b53a3a; }
+.iv-verdict-improved { border-left: 5px solid var(--iv-green); }
+.iv-verdict-unchanged { border-left: 5px solid var(--iv-gold); }
+.iv-verdict-degraded { border-left: 5px solid #b53a3a; }
 .iv-model-card h3 { margin: 0 0 .25rem 0; color: var(--iv-ink); }
 .iv-badge {
   display: inline-block; padding: .18rem .55rem; border-radius: 999px;
@@ -89,6 +92,18 @@ def _rate(value: float | None) -> str:
     return f"{value * 100:.2f} %" if value is not None else "Non disponible"
 
 
+def _optional(value: object) -> str:
+    return "Non disponible" if value is None else str(value)
+
+
+def _status_label(status: str) -> str:
+    return {
+        "baseline": "modèle baseline",
+        "adapted": "modèle adapté",
+        "pilot_adapted": "modèle pilote adapté",
+    }.get(status, status)
+
+
 def render_comparison_cards(run: ComparisonRun) -> str:
     """Render escaped side-by-side cards without a local path or fake confidence."""
 
@@ -113,6 +128,18 @@ def render_comparison_cards(run: ComparisonRun) -> str:
                 _metric("WER", _rate(evaluation.wer)),
                 _metric("CER", _rate(evaluation.cer)),
                 _metric("Révision", result.model_revision),
+                _metric("Checkpoint", result.checkpoint_name or "Non applicable"),
+                _metric("Tâche", result.task),
+                _metric(
+                    "Configuration langue",
+                    (
+                        f"{result.configured_language} — multilingue, sans token forcé"
+                        if result.configured_language
+                        else "Multilingue, sans token forcé"
+                    ),
+                ),
+                _metric("Audios d'entraînement", _optional(result.training_audio_count)),
+                _metric("Audios de validation", _optional(result.validation_audio_count)),
                 _metric(
                     "Métriques de référence",
                     evaluation.message,
@@ -122,7 +149,7 @@ def render_comparison_cards(run: ComparisonRun) -> str:
         cards.append(
             f"<article class='iv-model-card{failure_class}'>"
             f"<h3>{html.escape(result.display_name)}</h3>"
-            f"<span class='iv-badge'>{html.escape(result.model_status)}</span>"
+            f"<span class='iv-badge'>{html.escape(_status_label(result.model_status))}</span>"
             f"<p class='iv-transcript'>{html.escape(transcript)}</p>"
             f"<div class='iv-metrics'>{metrics}</div>"
             "</article>"
@@ -136,11 +163,13 @@ def render_benchmark_context(view: BenchmarkView | None, error: str | None = Non
         return f"<div class='iv-model-card failed'><p class='iv-error'>{message}</p></div>"
     return (
         "<div class='iv-model-card'>"
-        "<h3>Contexte expérimental</h3>"
+        f"<h3>{html.escape(view.experiment_title)}</h3>"
+        f"<p>{html.escape(view.comparison_scope)}</p>"
         "<div class='iv-metrics'>"
         + _metric("Dataset", view.dataset_name)
         + _metric("Split", view.split)
-        + _metric("Locuteurs du pilote", str(view.speaker_count))
+        + _metric("Audios", str(view.audio_count))
+        + _metric("Locuteurs", str(view.speaker_count))
         + _metric("Seed", str(view.seed))
         + _metric("Matériel", view.hardware)
         + _metric("Date du rapport", view.run_date)
@@ -151,11 +180,35 @@ def render_benchmark_context(view: BenchmarkView | None, error: str | None = Non
 
 
 def render_error_sample(sample: ErrorSample, evaluation_service: EvaluationService) -> str:
+    baseline_evaluation = evaluation_service.evaluate(
+        sample.reference,
+        sample.predictions.get("Whisper Tiny — baseline", ""),
+    )
+    adapted_evaluation = evaluation_service.evaluate(
+        sample.reference,
+        sample.predictions.get("Whisper Tiny Dioula — adapté pilote", ""),
+    )
+    baseline_wer = baseline_evaluation.wer
+    adapted_wer = adapted_evaluation.wer
+    if baseline_wer is None or adapted_wer is None:
+        verdict = "Comparaison indisponible."
+        verdict_class = "unchanged"
+    elif adapted_wer < baseline_wer:
+        verdict = "L’adaptation améliore cet échantillon."
+        verdict_class = "improved"
+    elif adapted_wer > baseline_wer:
+        verdict = "L’adaptation dégrade cet échantillon."
+        verdict_class = "degraded"
+    else:
+        verdict = "Le résultat est inchangé sur cet échantillon."
+        verdict_class = "unchanged"
     blocks = [
         "<div class='iv-private'>Analyse locale privée : ne pas capturer ni publier "
         "les transcriptions sans autorisation.</div>",
         f"<div class='iv-model-card'><h3>Audio anonymisé {html.escape(sample.audio_id)}</h3>",
         f"<p><strong>Référence :</strong> {html.escape(sample.reference)}</p></div>",
+        f"<div class='iv-model-card iv-verdict-{verdict_class}'>"
+        f"<strong>{html.escape(verdict)}</strong></div>",
     ]
     for model_name, prediction in sample.predictions.items():
         evaluation = evaluation_service.evaluate(sample.reference, prediction)
@@ -197,6 +250,14 @@ def benchmark_rows(view: BenchmarkView | None) -> list[list[Any]]:
             row["date"],
             row["seed"],
             row["revision"],
+            row["validation_loss"],
+            row["substitutions"],
+            row["insertions"],
+            row["deletions"],
+            row["wer_absolute_reduction_points"],
+            row["wer_relative_reduction_percent"],
+            row["cer_absolute_reduction_points"],
+            row["cer_relative_reduction_percent"],
         ]
         for row in view.rows
     ]
@@ -228,9 +289,10 @@ strictement entre entraînement, validation et test.
 
 `Gradio → ComparisonService → ModelRegistry → ASRBackend → EvaluationService → ExportService`
 
-Les modèles disponibles sont Whisper Tiny et Whisper Small en baseline. Ils
-sont chargés à la demande, un par un. Un futur Whisper Tiny adapté pourra être
-activé uniquement par configuration YAML.
+Les modèles disponibles sont Whisper Tiny et Whisper Small en baseline, ainsi
+que Whisper Tiny Dioula adapté pilote. Ils sont chargés à la demande, un par
+un, puis libérés. Le checkpoint pilote reste hors de Git et son emplacement
+provient exclusivement d'une variable d'environnement.
 
 ### Lire les métriques
 
@@ -244,10 +306,12 @@ ne fournit pas ici de score de confiance calibré.
 
 ### Limites et éthique
 
-Les deux baselines restent très imprécises en dioula. Les données, références,
-prédictions et futurs modèles dérivés restent strictement locaux, car la
-licence et le consentement de redistribution ne sont pas confirmés. Cette
-interface ne doit pas être exposée publiquement avec les artefacts privés.
+Le modèle adapté reste un pilote et n'est pas le modèle final. Les données,
+références, prédictions et modèles dérivés restent strictement locaux, car la
+licence et le consentement de redistribution ne sont pas confirmés. Le
+`final_holdout` n'a pas été évalué. Le baoulé constitue une perspective, pas
+une capacité actuelle. Cette interface ne doit pas être exposée publiquement
+avec les artefacts privés.
 
 Projet : [github.com/Inza01/ivoirevoice-ai](https://github.com/Inza01/ivoirevoice-ai)
 """

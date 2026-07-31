@@ -8,7 +8,7 @@ import json
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from ivoirevoice.evaluation.baseline import normalize_evaluation_text
 from ivoirevoice.evaluation.metrics import edit_counts
@@ -44,6 +44,10 @@ class BenchmarkView:
     hardware: str
     run_date: str
     normalization: str
+    experiment_id: str
+    experiment_title: str
+    audio_count: int
+    comparison_scope: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +58,14 @@ class ErrorSample:
     relative_audio_path: str
     reference: str
     predictions: dict[str, str]
+
+
+def relative_reduction_percent(baseline: float, adapted: float) -> float | None:
+    """Return a lower-is-better relative reduction percentage."""
+
+    if baseline == 0:
+        return None
+    return (baseline - adapted) / baseline * 100
 
 
 class EvaluationService:
@@ -157,7 +169,13 @@ def load_benchmark_view(comparison_path: Path, environment_path: Path) -> Benchm
             raise ConfigError("Une ligne du benchmark est invalide.")
         rows.append(
             {
-                "model": model["model_id"],
+                "model": str(model["model_id"]).replace(
+                    "openai/whisper-tiny",
+                    "Whisper Tiny — baseline",
+                ).replace(
+                    "openai/whisper-small",
+                    "Whisper Small — baseline",
+                ),
                 "type": "baseline",
                 "audios": model["evaluated_audio_count"],
                 "successes": model["successful_audio_count"],
@@ -169,6 +187,14 @@ def load_benchmark_view(comparison_path: Path, environment_path: Path) -> Benchm
                 "date": model.get("generated_at_utc", comparison.get("generated_at_utc", "")),
                 "seed": int(comparison.get("seed", 42)),
                 "revision": model["model_revision"],
+                "validation_loss": None,
+                "substitutions": None,
+                "insertions": None,
+                "deletions": None,
+                "wer_absolute_reduction_points": None,
+                "wer_relative_reduction_percent": None,
+                "cer_absolute_reduction_points": None,
+                "cer_relative_reduction_percent": None,
             }
         )
     torch_info = environment.get("torch")
@@ -190,6 +216,138 @@ def load_benchmark_view(comparison_path: Path, environment_path: Path) -> Benchm
                 "normalization",
                 "NFC, espaces normalisés, minuscules, ponctuation retirée, ↘ retiré",
             )
+        ),
+        experiment_id="historical_pilot",
+        experiment_title="Expérience B — pilote historique",
+        audio_count=int(comparison.get("selected_audio_count", len(rows))),
+        comparison_scope=(
+            "150 audios du pilote historique : Whisper Tiny baseline "
+            "contre Whisper Small baseline."
+        ),
+    )
+
+
+def load_pilot_adaptation_benchmark(comparison_path: Path) -> BenchmarkView:
+    """Load the Phase 4C validation-only baseline/adapted comparison."""
+
+    try:
+        payload: object = json.loads(comparison_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ConfigError("Le benchmark d'adaptation pilote est indisponible.") from exc
+    if not isinstance(payload, dict):
+        raise ConfigError("Le benchmark d'adaptation pilote doit être un objet JSON.")
+    serialized = json.dumps(payload, ensure_ascii=False)
+    if any(token in serialized for token in ("/home/", "\\Users\\", "speaker_name")):
+        raise ConfigError("Le benchmark d'adaptation contient une donnée privée.")
+    if payload.get("same_validation_subset") is not True:
+        raise ConfigError("Les deux modèles ne partagent pas la même validation.")
+    if any(
+        payload.get(field) is not False
+        for field in ("official_test_used", "pilot_test_used", "final_holdout_used")
+    ):
+        raise ConfigError("Un split interdit apparaît dans le benchmark d'adaptation.")
+
+    baseline = payload.get("baseline")
+    adapted = payload.get("adapted")
+    if not isinstance(baseline, dict) or not isinstance(adapted, dict):
+        raise ConfigError("Les métriques baseline/adapté sont incomplètes.")
+    audio_count = int(payload.get("validation_audio_count", 0))
+    if audio_count <= 0:
+        raise ConfigError("Le nombre d'audios de validation est invalide.")
+
+    baseline_wer = float(baseline["wer_micro"])
+    adapted_wer = float(adapted["wer_micro"])
+    baseline_cer = float(baseline["cer_micro"])
+    adapted_cer = float(adapted["cer_micro"])
+    wer_relative = relative_reduction_percent(baseline_wer, adapted_wer)
+    cer_relative = relative_reduction_percent(baseline_cer, adapted_cer)
+    expected_wer_relative = float(payload["wer_relative_reduction_percent"])
+    expected_cer_relative = float(payload["cer_relative_reduction_percent"])
+    if (
+        wer_relative is None
+        or cer_relative is None
+        or abs(wer_relative - expected_wer_relative) > 1e-9
+        or abs(cer_relative - expected_cer_relative) > 1e-9
+    ):
+        raise ConfigError("Les réductions relatives du benchmark sont incohérentes.")
+
+    common = {
+        "audios": audio_count,
+        "successes": audio_count,
+        "date": "Non enregistré",
+        "seed": 42,
+        "device": str(
+            cast(dict[str, Any], payload.get("hardware", {})).get("device", "Non disponible")
+        ),
+    }
+    rows = (
+        {
+            **common,
+            "model": "Whisper Tiny — baseline",
+            "type": "baseline",
+            "wer_percent": baseline_wer * 100,
+            "cer_percent": baseline_cer * 100,
+            "rtf": float(baseline["rtf"]),
+            "processing_time_seconds": float(baseline["processing_time_seconds"]),
+            "revision": str(payload["model_revision"]),
+            "validation_loss": float(baseline["validation_loss"]),
+            "substitutions": int(baseline["word_substitutions"]),
+            "insertions": int(baseline["word_insertions"]),
+            "deletions": int(baseline["word_deletions"]),
+            "wer_absolute_reduction_points": None,
+            "wer_relative_reduction_percent": None,
+            "cer_absolute_reduction_points": None,
+            "cer_relative_reduction_percent": None,
+        },
+        {
+            **common,
+            "model": "Whisper Tiny Dioula — adapté pilote",
+            "type": "pilote adapté",
+            "wer_percent": adapted_wer * 100,
+            "cer_percent": adapted_cer * 100,
+            "rtf": float(adapted["rtf"]),
+            "processing_time_seconds": float(adapted["processing_time_seconds"]),
+            "revision": str(payload["best_checkpoint_name"]),
+            "validation_loss": float(adapted["validation_loss"]),
+            "substitutions": int(adapted["word_substitutions"]),
+            "insertions": int(adapted["word_insertions"]),
+            "deletions": int(adapted["word_deletions"]),
+            "wer_absolute_reduction_points": float(
+                payload["wer_absolute_reduction"]
+            )
+            * 100,
+            "wer_relative_reduction_percent": expected_wer_relative,
+            "cer_absolute_reduction_points": float(
+                payload["cer_absolute_reduction"]
+            )
+            * 100,
+            "cer_relative_reduction_percent": expected_cer_relative,
+        },
+    )
+    hardware = payload.get("hardware")
+    hardware_label = (
+        str(hardware.get("gpu_name") or hardware.get("device") or "Non disponible")
+        if isinstance(hardware, dict)
+        else "Non disponible"
+    )
+    return BenchmarkView(
+        rows=rows,
+        dataset_name="Validation pilote dioula",
+        split="validation",
+        speaker_count=3,
+        seed=42,
+        hardware=hardware_label,
+        run_date="Non enregistré",
+        normalization=(
+            "target_text_mvp ; NFC ; minuscules et ponctuation retirée "
+            "pour le calcul WER/CER"
+        ),
+        experiment_id="pilot_adaptation_validation",
+        experiment_title="Expérience A — validation pilote",
+        audio_count=audio_count,
+        comparison_scope=(
+            "600 mêmes audios et références : Whisper Tiny baseline "
+            "contre Whisper Tiny adapté pilote."
         ),
     )
 
@@ -236,4 +394,57 @@ def load_error_samples(tiny_csv: Path, small_csv: Path) -> tuple[ErrorSample, ..
         )
     if not samples:
         raise ConfigError("Aucun échantillon commun n'est disponible.")
+    return tuple(samples)
+
+
+def load_adaptation_error_samples(
+    predictions_path: Path,
+    manifest_path: Path,
+) -> tuple[ErrorSample, ...]:
+    """Join shareable Phase 4C predictions to private validation audio paths."""
+
+    try:
+        with manifest_path.open(encoding="utf-8", newline="") as stream:
+            manifest_reader = csv.DictReader(stream)
+            required_manifest = {"utterance_id", "audio_path", "split"}
+            if not required_manifest.issubset(manifest_reader.fieldnames or []):
+                raise ConfigError("Le manifeste privé est incomplet.")
+            validation_paths = {
+                row["utterance_id"]: row["audio_path"]
+                for row in manifest_reader
+                if row["split"] == "validation"
+            }
+        with predictions_path.open(encoding="utf-8", newline="") as stream:
+            prediction_reader = csv.DictReader(stream)
+            required_predictions = {
+                "audio_id_anonymized",
+                "target_text_mvp",
+                "baseline_prediction",
+                "adapted_prediction",
+            }
+            if not required_predictions.issubset(prediction_reader.fieldnames or []):
+                raise ConfigError("Les prédictions d'adaptation sont incomplètes.")
+            prediction_rows = list(prediction_reader)
+    except (OSError, UnicodeError, csv.Error) as exc:
+        raise ConfigError("L'analyse d'erreurs adaptée est indisponible.") from exc
+
+    samples: list[ErrorSample] = []
+    for row in prediction_rows:
+        audio_id = row["audio_id_anonymized"]
+        relative_audio_path = validation_paths.get(audio_id)
+        if relative_audio_path is None:
+            raise ConfigError("Une prédiction ne correspond pas au split validation.")
+        samples.append(
+            ErrorSample(
+                audio_id=audio_id,
+                relative_audio_path=relative_audio_path,
+                reference=row["target_text_mvp"],
+                predictions={
+                    "Whisper Tiny — baseline": row["baseline_prediction"],
+                    "Whisper Tiny Dioula — adapté pilote": row["adapted_prediction"],
+                },
+            )
+        )
+    if not samples:
+        raise ConfigError("Aucun échantillon d'adaptation n'est disponible.")
     return tuple(samples)

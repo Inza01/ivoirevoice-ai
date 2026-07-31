@@ -211,19 +211,20 @@ def _create_transformers_pipeline(settings: WhisperSettings) -> WhisperPipeline:
 
     device, dtype = _resolve_runtime(settings, torch)
     settings.cache_dir.mkdir(parents=True, exist_ok=True)
-    pipeline = transformers.pipeline(
-        "automatic-speech-recognition",
-        model=settings.model_id,
-        revision=settings.model_revision,
-        device=device,
-        dtype=dtype,
-        trust_remote_code=False,
-        model_kwargs={
+    pipeline_options: dict[str, Any] = {
+        "model": settings.model_id,
+        "device": device,
+        "dtype": dtype,
+        "trust_remote_code": False,
+        "model_kwargs": {
             "cache_dir": str(settings.cache_dir),
             "local_files_only": settings.local_files_only,
             "use_safetensors": True,
         },
-    )
+    }
+    if not Path(settings.model_id).is_dir():
+        pipeline_options["revision"] = settings.model_revision
+    pipeline = transformers.pipeline("automatic-speech-recognition", **pipeline_options)
     return cast(WhisperPipeline, pipeline)
 
 

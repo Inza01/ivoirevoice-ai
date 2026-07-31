@@ -66,6 +66,11 @@ class ExportService:
                     "model_id": result.model_id,
                     "model_revision": result.model_revision,
                     "model_status": result.model_status,
+                    "checkpoint_name": result.checkpoint_name or "",
+                    "task": result.task,
+                    "configured_language": result.configured_language or "",
+                    "training_audio_count": result.training_audio_count,
+                    "validation_audio_count": result.validation_audio_count,
                     "device": result.device,
                     "hardware": result.hardware,
                     "success": result.success,
@@ -104,6 +109,20 @@ class ExportService:
                     result.display_name,
                     f"Statut : {'succès' if result.success else 'échec'}",
                     f"Révision : {result.model_revision}",
+                    f"Checkpoint : {result.checkpoint_name or 'non applicable'}",
+                    f"Tâche : {result.task}",
+                    (
+                        "Configuration de langue : "
+                        f"{result.configured_language or 'multilingue sans token forcé'}"
+                    ),
+                    (
+                        "Audios d'entraînement : "
+                        f"{result.training_audio_count or 'non applicable'}"
+                    ),
+                    (
+                        "Audios de validation : "
+                        f"{result.validation_audio_count or 'non applicable'}"
+                    ),
                     f"Appareil : {result.device}",
                     f"Matériel : {result.hardware}",
                     f"Transcription : {result.transcription}",

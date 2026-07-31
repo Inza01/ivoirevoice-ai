@@ -35,6 +35,11 @@ class ModelComparisonResult:
     processing_time_seconds: float | None
     audio_duration_seconds: float
     rtf: float | None
+    checkpoint_name: str | None
+    task: str
+    configured_language: str | None
+    training_audio_count: int | None
+    validation_audio_count: int | None
     evaluation: EvaluationResult
     error: str | None
 
@@ -88,6 +93,11 @@ def _failed_result(
         processing_time_seconds=None,
         audio_duration_seconds=duration,
         rtf=None,
+        checkpoint_name=definition.checkpoint_name,
+        task=definition.task,
+        configured_language=definition.configured_language,
+        training_audio_count=definition.training_audio_count,
+        validation_audio_count=definition.validation_audio_count,
         evaluation=evaluation_service.evaluate(None, ""),
         error=f"Échec isolé du modèle ({type(exception).__name__}).",
     )
@@ -110,6 +120,11 @@ def _successful_result(
         processing_time_seconds=output.processing_time_seconds,
         audio_duration_seconds=output.audio_duration_seconds,
         rtf=output.rtf,
+        checkpoint_name=output.checkpoint_name,
+        task=output.task,
+        configured_language=output.configured_language,
+        training_audio_count=output.training_audio_count,
+        validation_audio_count=output.validation_audio_count,
         evaluation=evaluation,
         error=None,
     )

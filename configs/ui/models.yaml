@@ -34,14 +34,20 @@ models:
       - dyu
     enabled: true
 
-  whisper_tiny_dioula:
-    display_name: Whisper Tiny — adapté au dioula
+  whisper_tiny_dioula_pilot:
+    display_name: Whisper Tiny Dioula — adapté pilote
     backend: whisper
-    status: adapted
-    model_id: local/whisper-tiny-dioula
-    revision: local
-    config_path_environment_variable: IVOIREVOICE_FINETUNED_MODEL_CONFIG
+    status: pilot_adapted
+    model_id: openai/whisper-tiny
+    revision: be0ba7c2f24f0127b27863a23a08002af4c2c279
+    config_path: configs/models/whisper_tiny.yaml
+    model_path: ${IVOIREVOICE_DIOULA_PILOT_MODEL_PATH}
+    checkpoint_name: checkpoint-000140
+    task: transcribe
+    language: dyu
+    training_audio_count: 2250
+    validation_audio_count: 600
     device: auto
     languages:
       - dyu
-    enabled: false
+    enabled: true

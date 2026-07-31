@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -18,7 +18,7 @@ from ivoirevoice.models.base import TranscriptionResult
 from ivoirevoice.models.registry import BackendFactory, ModelRegistry
 from ivoirevoice.models.whisper import WhisperBackend, load_whisper_settings
 
-MODEL_STATUS = {"baseline", "adapted"}
+MODEL_STATUS = {"baseline", "adapted", "pilot_adapted"}
 MODEL_BACKENDS = {"whisper"}
 
 
@@ -36,6 +36,12 @@ class ModelDefinition:
     device: str
     languages: tuple[str, ...]
     enabled: bool
+    model_path: Path | None = None
+    checkpoint_name: str | None = None
+    task: str = "transcribe"
+    configured_language: str | None = None
+    training_audio_count: int | None = None
+    validation_audio_count: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +89,11 @@ class TranscriptionOutput:
     processing_time_seconds: float
     audio_duration_seconds: float
     rtf: float
+    checkpoint_name: str | None
+    task: str
+    configured_language: str | None
+    training_audio_count: int | None
+    validation_audio_count: int | None
 
 
 def _mapping(value: object, label: str) -> dict[str, Any]:
@@ -116,6 +127,15 @@ def _string_list(data: dict[str, Any], field: str, label: str) -> tuple[str, ...
     return tuple(cast(str, item).strip() for item in value)
 
 
+def _optional_positive_int(data: dict[str, Any], field: str, label: str) -> int | None:
+    value = data.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ConfigError(f"{label}.{field} doit être un entier strictement positif.")
+    return value
+
+
 def _repository_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
@@ -142,6 +162,36 @@ def _resolve_config_path(data: dict[str, Any], *, enabled: bool, label: str) -> 
     if enabled:
         raise ConfigError(f"{label} activé exige une configuration de modèle.")
     return None
+
+
+def _resolve_model_path(data: dict[str, Any], *, label: str) -> Path | None:
+    raw_value = data.get("model_path")
+    if raw_value is None:
+        return None
+    if not isinstance(raw_value, str) or not raw_value.strip():
+        raise ConfigError(f"{label}.model_path doit être une chaîne non vide.")
+    placeholder = raw_value.strip()
+    if not (placeholder.startswith("${") and placeholder.endswith("}")):
+        raise ConfigError(
+            f"{label}.model_path doit référencer uniquement une variable d'environnement."
+        )
+    variable_name = placeholder[2:-1]
+    if not variable_name or not variable_name.replace("_", "").isalnum():
+        raise ConfigError(f"{label}.model_path contient une variable invalide.")
+    configured = os.getenv(variable_name)
+    return Path(configured).expanduser().resolve() if configured else None
+
+
+def _optional_safe_string(data: dict[str, Any], field: str, label: str) -> str | None:
+    value = data.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigError(f"{label}.{field} doit être une chaîne non vide.")
+    normalized = value.strip()
+    if "/" in normalized or "\\" in normalized:
+        raise ConfigError(f"{label}.{field} ne doit pas contenir de chemin.")
+    return normalized
 
 
 def load_model_catalog(path: str | Path | None = None) -> ModelCatalog:
@@ -182,6 +232,14 @@ def load_model_catalog(path: str | Path | None = None) -> ModelCatalog:
             raise ConfigError(f"{label}.status n'est pas pris en charge.")
         if device not in {"auto", "cpu", "cuda"}:
             raise ConfigError(f"{label}.device est invalide.")
+        task = str(data.get("task", "transcribe")).strip()
+        if task != "transcribe":
+            raise ConfigError(f"{label}.task doit valoir transcribe.")
+        configured_language = data.get("language")
+        if configured_language is not None and (
+            not isinstance(configured_language, str) or not configured_language.strip()
+        ):
+            raise ConfigError(f"{label}.language doit être une chaîne non vide.")
         models.append(
             ModelDefinition(
                 key=key.strip().lower(),
@@ -194,6 +252,28 @@ def load_model_catalog(path: str | Path | None = None) -> ModelCatalog:
                 device=device,
                 languages=_string_list(data, "languages", label),
                 enabled=enabled,
+                model_path=_resolve_model_path(data, label=label),
+                checkpoint_name=_optional_safe_string(
+                    data,
+                    "checkpoint_name",
+                    label,
+                ),
+                task=task,
+                configured_language=(
+                    configured_language.strip()
+                    if isinstance(configured_language, str)
+                    else None
+                ),
+                training_audio_count=_optional_positive_int(
+                    data,
+                    "training_audio_count",
+                    label,
+                ),
+                validation_audio_count=_optional_positive_int(
+                    data,
+                    "validation_audio_count",
+                    label,
+                ),
             )
         )
     enabled_models = [model for model in models if model.enabled]
@@ -218,6 +298,27 @@ def _backend_factory(definition: ModelDefinition) -> WhisperBackend:
         raise ConfigError("Le model_id du catalogue ne correspond pas à sa configuration.")
     if settings.model_revision != definition.revision:
         raise ConfigError("La révision du catalogue ne correspond pas à sa configuration.")
+    if definition.model_path is not None:
+        required_files = ("config.json", "model.safetensors", "preprocessor_config.json")
+        if not definition.model_path.is_dir() or any(
+            not (definition.model_path / filename).is_file()
+            for filename in required_files
+        ):
+            raise ConfigError("Le checkpoint pilote configuré est absent ou incomplet.")
+        settings = replace(
+            settings,
+            backend_name=definition.key,
+            model_id=str(definition.model_path),
+            device=definition.device,
+            task=definition.task,
+            language=None,
+            local_files_only=True,
+            supported_languages=definition.languages,
+        )
+    elif definition.status == "pilot_adapted":
+        raise ConfigError(
+            "IVOIREVOICE_DIOULA_PILOT_MODEL_PATH est requis pour le modèle pilote."
+        )
     return WhisperBackend(settings)
 
 
@@ -329,4 +430,9 @@ class TranscriptionService:
             processing_time_seconds=result.processing_time_seconds,
             audio_duration_seconds=duration,
             rtf=(result.processing_time_seconds / duration if duration else 0.0),
+            checkpoint_name=definition.checkpoint_name,
+            task=definition.task,
+            configured_language=definition.configured_language,
+            training_audio_count=definition.training_audio_count,
+            validation_audio_count=definition.validation_audio_count,
         )
