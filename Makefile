@@ -17,7 +17,8 @@ TRAINING_REPORTS_DIR ?= reports/data
 SMOKE_TRAINING_CONFIG := configs/experiments/smoke_overfit_whisper_tiny_dy.yaml
 PILOT_TRAINING_CONFIG := configs/experiments/pilot_finetune_whisper_tiny_dy.yaml
 
-.PHONY: setup install-dev lint format typecheck test compile audit-repository verify
+.PHONY: setup install-dev lint format typecheck test compile audit-repository
+.PHONY: harness-check verify-fast verify
 .PHONY: api ui audit-dioula
 .PHONY: manifest-dioula curate-dioula compare-dioula-splits freeze-dioula-v01
 .PHONY: validate-dioula-v01 check-ml-environment inspect-baseline-models
@@ -50,12 +51,18 @@ compile:
 audit-repository:
 	$(VENV_PYTHON) scripts/audit_repository.py
 
-verify:
+harness-check:
+	$(VENV_PYTHON) scripts/check_harness.py
+
+verify-fast:
 	$(VENV_PYTHON) scripts/verify_environment.py
 	$(MAKE) compile
 	$(MAKE) audit-repository
+	$(MAKE) harness-check
 	$(MAKE) lint
 	$(MAKE) typecheck
+
+verify: verify-fast
 	$(MAKE) test
 
 api:

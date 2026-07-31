@@ -400,6 +400,33 @@ subject to the source-data governance decision.
 - checkpoints, secrets, audio and caches are ignored;
 - aggregate reports preserve the original experimental values.
 
+## Agent-first engineering harness
+
+The repository is designed so a coding agent can discover context, implement a
+bounded change and obtain mechanical feedback without relying on chat history.
+
+- [`AGENTS.md`](AGENTS.md) is the concise navigation map.
+- [`docs/index.md`](docs/index.md) is the versioned knowledge-system entry
+  point.
+- [`docs/knowledge-map.yaml`](docs/knowledge-map.yaml) maps each domain to its
+  source, tests and documentation.
+- execution plans preserve progress and decisions for multi-domain work;
+- architecture, documentation links and agent contracts are checked by
+  `make harness-check`;
+- local development and GitHub Actions share the same `make verify` gate.
+
+Use the short loop while iterating:
+
+```bash
+make verify-fast
+```
+
+Before handoff or merge, run the complete loop:
+
+```bash
+make verify
+```
+
 ## Author
 
 Project repository: [github.com/Inza01/ivoirevoice-ai](https://github.com/Inza01/ivoirevoice-ai)

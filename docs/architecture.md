@@ -176,3 +176,24 @@ l'interface loopback et le partage public Gradio est explicitement désactivé.
 - `api/` et `ui/` : adaptateurs d'entrée, sans logique ML spécifique.
 
 Le stockage des données, checkpoints et sorties reste hors Git.
+
+## Dépendances autorisées
+
+Les dépendances inter-domaines existantes sont des invariants vérifiés par
+`scripts/check_harness.py` :
+
+```text
+api        -> config, exceptions, models, services
+data       -> exceptions
+models     -> exceptions
+evaluation -> data, exceptions, models
+training   -> data, evaluation, exceptions, models
+services   -> data, evaluation, exceptions, models
+ui         -> exceptions, services
+```
+
+Les imports internes à un domaine restent libres. Une nouvelle direction
+nécessite une décision dans un plan d'exécution, une mise à jour de cette
+architecture et du validateur dans le même changement. Les imports absolus et
+relatifs sont contrôlés afin qu'un changement de syntaxe ne contourne pas la
+frontière.
