@@ -66,12 +66,16 @@ première validation d'adaptation contrôlée. Cette décision est limitée à c
 corpus privé et à cette sélection ; aucun fine-tuning n'est réalisé en
 Phase 4A.
 
-## Phase 5A — démonstrateur avant adaptation
+## Phase 5B — démonstrateur avec adaptation pilote
 
-Avant tout fine-tuning, les deux baselines sont accessibles dans une interface
-locale de comparaison. Le tableau de bord ne recalcule pas le benchmark :
-il charge `baseline_dy_pilot_comparison.json` et
-`environment_report.json`, puis affiche les agrégats vérifiés.
+Les deux baselines et Tiny adapté pilote sont accessibles dans une interface
+locale de comparaison. Le tableau de bord ne recalcule pas les benchmarks :
+il charge leurs agrégats vérifiés et maintient deux expériences distinctes.
+
+- Expérience A : Tiny baseline contre Tiny adapté sur les mêmes 600 audios de
+  validation ;
+- Expérience B : Tiny baseline contre Small baseline sur les 150 audios du
+  pilote test historique.
 
 Une comparaison personnalisée suit ce protocole :
 
@@ -84,9 +88,12 @@ Une comparaison personnalisée suit ce protocole :
 7. exporter sans chemin audio local.
 
 L'analyse des erreurs peut afficher localement les références et prédictions
-privées des 150 audios. Elle n'utilise jamais leur chemin comme libellé.
+privées de validation depuis `IVOIREVOICE_ARTIFACTS_DIR`. Elle n'utilise
+jamais leur chemin comme libellé et ces fichiers ne sont pas versionnés.
 L'interface reste liée à `127.0.0.1`, ne crée aucun lien public et n'ajoute
 aucune nouvelle métrique expérimentale.
 
-Le modèle adapté reste désactivé. Son ajout ultérieur exige une configuration
-YAML externe et ne remplacera jamais les deux baselines.
+Le checkpoint `checkpoint-000140` reste hors Git. L'interface le résout via
+`IVOIREVOICE_DIOULA_PILOT_MODEL_PATH`, le charge séquentiellement et ne
+remplace jamais les deux baselines. Le modèle reste un pilote : le
+`final_holdout` n'a pas été évalué.

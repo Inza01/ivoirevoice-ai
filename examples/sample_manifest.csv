@@ -1,0 +1,4 @@
+utterance_id,audio_path,speaker_id,language,transcript,duration_s,sample_rate_hz,channels,split,audio_sha256,gender
+sample_001,examples/audio/sample_001.wav,speaker_demo_01,dyu,synthetic dioula example one,2.40,16000,1,train,1111111111111111111111111111111111111111111111111111111111111111,unknown
+sample_002,examples/audio/sample_002.wav,speaker_demo_02,dyu,synthetic dioula example two,3.10,16000,1,validation,2222222222222222222222222222222222222222222222222222222222222222,unknown
+sample_003,examples/audio/sample_003.wav,speaker_demo_03,fr,exemple français entièrement fictif,1.85,16000,1,test,3333333333333333333333333333333333333333333333333333333333333333,unknown

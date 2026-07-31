@@ -19,7 +19,7 @@ FastAPI                    Gradio
                               |
                          ASRBackend
                               |
-                Whisper Tiny / Small / adapté futur
+              Whisper Tiny / Small / Tiny adapté pilote
 ```
 
 La configuration principale vient de `configs/project.yaml`. Les variables
@@ -155,15 +155,17 @@ EvaluationService ---- normalisation, WER, CER et différences
 ExportService ---- JSON, CSV, TXT et aperçus temporaires anonymisés
 ```
 
-`configs/ui/models.yaml` contient les deux baselines actives et une entrée
-adaptée désactivée. Cette dernière peut être activée via une configuration
-externe après fine-tuning, sans dépendance directe entre l'UI et Whisper.
+`configs/ui/models.yaml` contient les deux baselines et l'entrée Tiny adaptée
+pilote. Le checkpoint reste hors Git ; son emplacement est résolu uniquement
+depuis `IVOIREVOICE_DIOULA_PILOT_MODEL_PATH`. Si cette variable manque, l'échec
+du pilote reste isolé et les deux baselines demeurent utilisables.
 
-Le benchmark lit exclusivement les rapports JSON agrégés. L'analyse d'erreurs
-lit les prédictions privées localement et n'affiche qu'un identifiant
-anonymisé. Un aperçu audio est copié vers un fichier temporaire au nom
-anonymisé, puis supprimé. Le serveur écoute sur l'interface loopback et le
-partage public Gradio est explicitement désactivé.
+Le benchmark lit exclusivement les rapports JSON agrégés et sépare la
+validation pilote de 600 audios du pilote historique de 150 audios. L'analyse
+d'erreurs lit les prédictions privées depuis `IVOIREVOICE_ARTIFACTS_DIR` et
+n'affiche qu'un identifiant anonymisé. Un aperçu audio est copié vers un
+fichier temporaire au nom anonymisé, puis supprimé. Le serveur écoute sur
+l'interface loopback et le partage public Gradio est explicitement désactivé.
 
 ## Frontières
 

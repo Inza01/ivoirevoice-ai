@@ -1,39 +1,92 @@
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
+coverage.xml
 htmlcov/
 
 # Environnements et secrets
 .venv/
 venv/
+env/
+env_tf/
+ENV/
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials.json
+/secrets/
+/.credentials/
 
 # Éditeurs et système
 .idea/
 .vscode/
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
 
-# Données, modèles et sorties (hors Git)
-/data/
+# Journaux, caches et temporaires
+*.log
+/logs/
+/tmp/
+/temp/
+/.cache/
+/.gradio/
+/gradio_cached_examples/
+
+# Données privées (les petits exemples synthétiques restent versionnables)
+/data/*
+!/data/README.md
 /datasets/
+/corpus/
+/voices_data/
+/audio_private/
 /checkpoints/
 /artifacts/
 /cache/
 /outputs/
 /runs/
+/wandb/
+/mlruns/
+/tensorboard/
+/huggingface_cache/
+/transformers_cache/
+/torch_cache/
+
+# Rapports locaux contenant des références ou prédictions privées
 /reports/data/manual_validation_annotations.json
 /reports/data/manual_validation_report.md
+/reports/training/*predictions*.csv
+
+# Poids, audios et médias privés/volumineux
 *.pt
 *.pth
 *.ckpt
 *.safetensors
 *.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+*.aac
 *.mp4
+*.mov
+*.mkv
+*.zip
+*.tar
+*.tar.gz
+*.7z
 
 # Notebooks
 .ipynb_checkpoints/

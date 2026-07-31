@@ -1,0 +1,2 @@
+# Development tools plus all runtime extras.
+-e .[core,data,ml,api,ui,dev]

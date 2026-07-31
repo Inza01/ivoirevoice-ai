@@ -5,6 +5,8 @@ VENV_BIN := $(VENV)/bin
 DIOULA_DATA_DIR ?= $(IVOIREVOICE_DIOULA_DATA_DIR)
 ARTIFACTS_DIR ?= $(if $(IVOIREVOICE_ARTIFACTS_DIR),$(IVOIREVOICE_ARTIFACTS_DIR),../artifacts)
 MODEL_CACHE_DIR ?= $(if $(IVOIREVOICE_MODEL_CACHE_DIR),$(IVOIREVOICE_MODEL_CACHE_DIR),../cache/models)
+CHECKPOINT_DIR ?= $(if $(IVOIREVOICE_CHECKPOINT_DIR),$(IVOIREVOICE_CHECKPOINT_DIR),../checkpoints)
+DIOULA_PILOT_MODEL_PATH ?= $(IVOIREVOICE_DIOULA_PILOT_MODEL_PATH)
 MODEL ?= whisper_tiny
 EXPERIMENT_CONFIG := configs/experiments/baseline_dy_$(MODEL).yaml
 UI_HOST ?= 127.0.0.1
@@ -13,19 +15,22 @@ REVIEW_HOST ?= 127.0.0.1
 REVIEW_PORT ?= 7861
 TRAINING_REPORTS_DIR ?= reports/data
 SMOKE_TRAINING_CONFIG := configs/experiments/smoke_overfit_whisper_tiny_dy.yaml
+PILOT_TRAINING_CONFIG := configs/experiments/pilot_finetune_whisper_tiny_dy.yaml
 
-.PHONY: setup install-dev lint format typecheck test verify api ui audit-dioula
+.PHONY: setup install-dev lint format typecheck test compile audit-repository verify
+.PHONY: api ui audit-dioula
 .PHONY: manifest-dioula curate-dioula compare-dioula-splits freeze-dioula-v01
 .PHONY: validate-dioula-v01 check-ml-environment inspect-baseline-models
 .PHONY: baseline-dy-smoke baseline-dy-pilot baseline-dy-full compare-dy-baselines
 .PHONY: audit-dioula-training review-dioula-training smoke-overfit-dy
+.PHONY: pilot-finetune-dy
 
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(VENV_PYTHON) -m pip install --upgrade pip
 
 install-dev:
-	$(VENV_PYTHON) -m pip install -e ".[core,data,api,ui,dev]"
+	$(VENV_PYTHON) -m pip install -e ".[core,data,ml,api,ui,dev]"
 
 lint:
 	$(VENV_BIN)/ruff check .
@@ -39,8 +44,16 @@ typecheck:
 test:
 	$(VENV_BIN)/pytest
 
+compile:
+	$(VENV_PYTHON) -m compileall -q src scripts tests
+
+audit-repository:
+	$(VENV_PYTHON) scripts/audit_repository.py
+
 verify:
 	$(VENV_PYTHON) scripts/verify_environment.py
+	$(MAKE) compile
+	$(MAKE) audit-repository
 	$(MAKE) lint
 	$(MAKE) typecheck
 	$(MAKE) test
@@ -52,6 +65,7 @@ ui:
 	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
 	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
 	IVOIREVOICE_MODEL_CACHE_DIR="$(MODEL_CACHE_DIR)" \
+	IVOIREVOICE_DIOULA_PILOT_MODEL_PATH="$(DIOULA_PILOT_MODEL_PATH)" \
 	IVOIREVOICE_UI_HOST="$(UI_HOST)" \
 	IVOIREVOICE_UI_PORT="$(UI_PORT)" \
 	$(VENV_PYTHON) -m ivoirevoice.ui.app
@@ -145,3 +159,11 @@ smoke-overfit-dy:
 	IVOIREVOICE_TRAINING_REPORTS_DIR="$(TRAINING_REPORTS_DIR)" \
 	$(VENV_PYTHON) -m ivoirevoice.training.smoke_overfit \
 		--experiment $(SMOKE_TRAINING_CONFIG)
+
+pilot-finetune-dy:
+	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
+	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
+	IVOIREVOICE_MODEL_CACHE_DIR="$(MODEL_CACHE_DIR)" \
+	IVOIREVOICE_CHECKPOINT_DIR="$(CHECKPOINT_DIR)" \
+	$(VENV_PYTHON) -m ivoirevoice.training.pilot_finetune \
+		--experiment $(PILOT_TRAINING_CONFIG)
