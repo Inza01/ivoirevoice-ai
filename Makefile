@@ -16,6 +16,8 @@ REVIEW_PORT ?= 7861
 TRAINING_REPORTS_DIR ?= reports/data
 SMOKE_TRAINING_CONFIG := configs/experiments/smoke_overfit_whisper_tiny_dy.yaml
 PILOT_TRAINING_CONFIG := configs/experiments/pilot_finetune_whisper_tiny_dy.yaml
+FULL_TRAINING_CONFIG := configs/experiments/full_finetune_whisper_tiny_dy.yaml
+CONFIRM_FINAL_HOLDOUT ?= $(IVOIREVOICE_CONFIRM_FINAL_HOLDOUT)
 
 .PHONY: setup install-dev lint format typecheck test compile audit-repository
 .PHONY: harness-check verify-fast verify
@@ -25,6 +27,8 @@ PILOT_TRAINING_CONFIG := configs/experiments/pilot_finetune_whisper_tiny_dy.yaml
 .PHONY: baseline-dy-smoke baseline-dy-pilot baseline-dy-full compare-dy-baselines
 .PHONY: audit-dioula-training review-dioula-training smoke-overfit-dy
 .PHONY: pilot-finetune-dy
+.PHONY: full-finetune-preflight full-finetune-dev full-finetune-refit
+.PHONY: evaluate-final-holdout-dy
 
 setup:
 	$(PYTHON) -m venv $(VENV)
@@ -174,3 +178,40 @@ pilot-finetune-dy:
 	IVOIREVOICE_CHECKPOINT_DIR="$(CHECKPOINT_DIR)" \
 	$(VENV_PYTHON) -m ivoirevoice.training.pilot_finetune \
 		--experiment $(PILOT_TRAINING_CONFIG)
+
+full-finetune-preflight:
+	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
+	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
+	IVOIREVOICE_MODEL_CACHE_DIR="$(MODEL_CACHE_DIR)" \
+	IVOIREVOICE_CHECKPOINT_DIR="$(CHECKPOINT_DIR)" \
+	IVOIREVOICE_DIOULA_PILOT_MODEL_PATH="$(DIOULA_PILOT_MODEL_PATH)" \
+	$(VENV_PYTHON) -m ivoirevoice.training.full_finetune \
+		--config $(FULL_TRAINING_CONFIG) --stage preflight
+
+full-finetune-dev:
+	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
+	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
+	IVOIREVOICE_MODEL_CACHE_DIR="$(MODEL_CACHE_DIR)" \
+	IVOIREVOICE_CHECKPOINT_DIR="$(CHECKPOINT_DIR)" \
+	IVOIREVOICE_DIOULA_PILOT_MODEL_PATH="$(DIOULA_PILOT_MODEL_PATH)" \
+	$(VENV_PYTHON) -m ivoirevoice.training.full_finetune \
+		--config $(FULL_TRAINING_CONFIG) --stage development
+
+full-finetune-refit:
+	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
+	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
+	IVOIREVOICE_MODEL_CACHE_DIR="$(MODEL_CACHE_DIR)" \
+	IVOIREVOICE_CHECKPOINT_DIR="$(CHECKPOINT_DIR)" \
+	IVOIREVOICE_DIOULA_PILOT_MODEL_PATH="$(DIOULA_PILOT_MODEL_PATH)" \
+	$(VENV_PYTHON) -m ivoirevoice.training.full_finetune \
+		--config $(FULL_TRAINING_CONFIG) --stage refit
+
+evaluate-final-holdout-dy:
+	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
+	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
+	IVOIREVOICE_MODEL_CACHE_DIR="$(MODEL_CACHE_DIR)" \
+	IVOIREVOICE_CHECKPOINT_DIR="$(CHECKPOINT_DIR)" \
+	IVOIREVOICE_DIOULA_PILOT_MODEL_PATH="$(DIOULA_PILOT_MODEL_PATH)" \
+	IVOIREVOICE_CONFIRM_FINAL_HOLDOUT="$(CONFIRM_FINAL_HOLDOUT)" \
+	$(VENV_PYTHON) -m ivoirevoice.training.full_finetune \
+		--config $(FULL_TRAINING_CONFIG) --stage final-evaluation

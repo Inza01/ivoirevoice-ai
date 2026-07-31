@@ -8,6 +8,8 @@
 - audio validation rejects unsupported, oversized or invalid inputs early;
 - training stops on non-finite loss;
 - experiment selection and split violations fail closed;
+- full training refuses CPU fallback and any run without working CUDA/FP16;
+- final-holdout access is sealed to one frozen model identity;
 - unit tests remain offline and deterministic.
 
 ## Feedback loops
@@ -32,6 +34,8 @@ stack; this is tracked as technical debt rather than implied as implemented.
 
 - model and UI failures are retriable without modifying data;
 - pilot training checkpoints are external and resumable;
+- full development/refit checkpoints are atomic, bounded and content-addressed;
+- a started final-holdout receipt permanently blocks further training;
 - frozen dataset artifacts are immutable;
 - generated private artifacts can be regenerated from authorized sources;
 - repository changes are recoverable through normal Git branches and commits.

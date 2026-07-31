@@ -50,3 +50,7 @@ runtime_entrypoints:
   ui: make ui
   smoke_training: make smoke-overfit-dy
   pilot_training: make pilot-finetune-dy
+  full_training_preflight: make full-finetune-preflight
+  full_training_development: make full-finetune-dev
+  full_training_refit: make full-finetune-refit
+  final_holdout_evaluation: make evaluate-final-holdout-dy

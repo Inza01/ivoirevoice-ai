@@ -190,3 +190,58 @@ succès.
 Ces résultats mesurent une amélioration sur validation, pas sur le test final.
 Le modèle adapté reste local et non publiable. La Phase 4C ne déclenche pas
 l'entraînement complet : celui-ci exige une nouvelle décision explicite.
+
+## Fine-tuning complet — développement, refit et holdout scellé
+
+Le workflow complet est volontairement découpé en commandes indépendantes.
+Aucune commande n’enchaîne automatiquement l’étape suivante.
+
+1. `make full-finetune-preflight` valide le dépôt propre, les 13 764 audios
+   train, les 2 661 audios validation, leurs empreintes, le checkpoint pilote,
+   l’espace disque et CUDA/FP16. Il recharge `checkpoint-000140` et effectue
+   une inférence de contrôle.
+2. `make full-finetune-dev` repart des poids pilotes avec un optimiseur et un
+   scheduler neufs. Le développement utilise uniquement train, avec validation
+   aux quarts d’époque, jusqu’à 1 722 steps et early stopping de patience 3.
+3. Le meilleur step est gelé selon WER micro, CER micro, loss validation puis
+   step le plus précoce. Le budget refit vaut
+   `floor((best_step / 861) × 1027 + 0,5)`.
+4. `make full-finetune-refit` repart à nouveau des poids pilotes avec des états
+   d’optimisation neufs, puis utilise exactement les 16 425 audios
+   train+validation. Aucune validation n’est décodée pendant le refit.
+5. L’unique évaluation finale exige explicitement :
+
+   ```bash
+   make evaluate-final-holdout-dy \
+     CONFIRM_FINAL_HOLDOUT=EVALUATE_FROZEN_MODEL_ONCE
+   ```
+
+Toutes les commandes exigent les mêmes variables locales que la Phase 4C :
+`DIOULA_DATA_DIR`, `ARTIFACTS_DIR`, `MODEL_CACHE_DIR`, `CHECKPOINT_DIR` et
+`DIOULA_PILOT_MODEL_PATH`.
+
+### Invariants complets
+
+- géométrie : 861 optimizer steps/époque en développement, 1 027 en refit ;
+- seed 42, batch CUDA 4, accumulation 4, LR `1e-5`, warmup 5 %, FP16 ;
+- le dernier groupe d’accumulation est divisé par son nombre réel de
+  micro-batches ;
+- checkpoint pilote : poids seulement au début de chaque phase ; son
+  optimiseur, scheduler, scaler et état `completed` sont ignorés ;
+- reprise autorisée uniquement si code, configuration, manifeste, sélection
+  et checkpoint initial ont les mêmes empreintes ;
+- checkpoints et rapports privés restent sous les racines externes fournies ;
+- les rapports partageables ne contiennent que des agrégats et restent eux
+  aussi hors Git jusqu’à une revue humaine ;
+- les 150 audios du pilote historique ne sont jamais mélangés au
+  `final_holdout` de 2 624 audios ;
+- l’évaluation finale compare Tiny original, le pilote et le refit sur la même
+  sélection, séquentiellement et depuis le cache local ;
+- dès que le reçu final est créé, tout nouveau développement ou refit est
+  refusé, y compris après un résultat négatif ;
+- licence inconnue : corpus, modèle, checkpoints et prédictions restent
+  `local_research_only`.
+
+L’absence de CUDA est un arrêt attendu, pas un motif de fallback CPU ou Colab.
+L’implémentation seule ne constitue ni un entraînement exécuté ni une
+évaluation du holdout.
