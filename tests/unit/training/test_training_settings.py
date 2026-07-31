@@ -23,6 +23,7 @@ experiment:
   pilot_prediction_files:
     - baselines/tiny/predictions_private.csv
   output_directory: training/smoke
+  report_output_directory: reports/training
   sample_count: {sample_count}
   minimum_correct_samples: 10
   canonical_text_column: target_text_mvp
@@ -60,6 +61,7 @@ def test_load_smoke_settings_accepts_bounded_train_configuration(
     assert settings.sample_count == 16
     assert settings.minimum_correct_samples == 10
     assert settings.expected_model_id == "openai/whisper-tiny"
+    assert settings.report_output_directory == Path.cwd() / "reports" / "training"
     assert settings.save_model is False
 
 

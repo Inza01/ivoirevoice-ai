@@ -1,4 +1,4 @@
-# Protocole d’entraînement local — Phase 4B
+# Protocole d’entraînement local — Phases 4B et 4C
 
 ## Portée
 
@@ -76,10 +76,23 @@ sparsité orthographique sur le très petit échantillon. Les variantes
   `correct` ;
 - 80 steps, batch 4, AdamW, clipping de gradient ;
 - CPU supporté en float32 ; CUDA utilise la précision mixte disponible ;
+- masque d'attention audio transmis explicitement ;
+- attention `eager` et algorithmes PyTorch déterministes pour le smoke CUDA ;
 - historique complet dans
   `artifacts/training/smoke_overfit_whisper_tiny_dy/loss_history.csv` ;
 - métriques agrégées dans `metrics.json` ;
 - prédictions privées avant/après dans `predictions_private.csv`.
+
+Les livrables locaux consolidés sont écrits dans `reports/training/` :
+
+- `smoke_overfit_metrics.json` ;
+- `smoke_overfit_report.md` ;
+- `smoke_overfit_loss.csv` ;
+- `smoke_overfit_loss.png`.
+
+Le rapport Markdown versionné est strictement agrégé. Les prédictions,
+références et variantes textuelles restent uniquement dans
+`artifacts/training/smoke_overfit_whisper_tiny_dy/predictions_private.csv`.
 
 Le rapport Markdown de validation et les annotations sont enregistrés dans
 `reports/data/`. Ces deux fichiers privés sont ignorés par Git car le premier
@@ -99,3 +112,81 @@ Si CUDA est indisponible, le runner fonctionne sur CPU. Le notebook Colab
 n’est donc nécessaire que lorsque le temps CPU local empêche réellement
 l’exécution ; dans ce cas il devra installer et importer le package du dépôt,
 sans recopier le pipeline.
+
+## Résultat du smoke-overfit Phase 4B
+
+Le run local seed 42 sur les 16 audios du train validés auditivement a réussi :
+
+- modèle `openai/whisper-tiny`, révision
+  `be0ba7c2f24f0127b27863a23a08002af4c2c279` ;
+- 80 steps, batch 4, learning rate `1e-4` ;
+- première/dernière loss : `4.958414` / `0.092581` ;
+- loss moyenne des 10 premiers/derniers steps :
+  `2.385014` / `0.021900`, soit une réduction de `99.08 %` ;
+- WER micro-train : `0.974026` avant, `0.006494` après ;
+- CER micro-train : `0.500000` avant, `0.003125` après ;
+- aucune loss non finie, aucun crash et aucune fuite de split ;
+- durée d'entraînement : `11.616 s` ; durée totale : `27.235 s` ;
+- pic mémoire CUDA : `2752.85 MiB`.
+
+Ces chiffres démontrent uniquement la capacité du pipeline à mémoriser le
+micro-train. Ils ne mesurent pas la généralisation et n'autorisent pas le
+lancement d'une Phase 4C sans décision explicite.
+
+## Phase 4C — pilote train/validation
+
+La Phase 4C utilise exclusivement :
+
+- 2 250 audios du train, couvrant les 15 locuteurs ;
+- 600 audios de validation, soit 200 pour chacun des 3 locuteurs ;
+- `target_text_mvp` comme référence canonique ;
+- le même sous-ensemble validation pour la baseline et le modèle adapté.
+
+Le test est partitionné uniquement par ses métadonnées anonymisées :
+`pilot_test` contient les 150 identifiants historiques et `final_holdout` les
+2 624 autres. Aucun audio de ces deux partitions n'est décodé ou transcrit
+pendant la Phase 4C.
+
+La commande locale est :
+
+```bash
+make pilot-finetune-dy \
+  DIOULA_DATA_DIR="/chemin/absolu/vers/voices_data" \
+  ARTIFACTS_DIR="/chemin/absolu/vers/artifacts" \
+  MODEL_CACHE_DIR="/chemin/absolu/vers/cache/models" \
+  CHECKPOINT_DIR="/chemin/absolu/vers/checkpoints"
+```
+
+Le pilote utilise une époque, un batch CUDA de 4, une accumulation de 4,
+FP16, gradient checkpointing non-reentrant, warmup 5 %, weight decay 0,01,
+évaluation tous les 35 steps et early stopping de patience 2. Les checkpoints
+reprenables sont stockés hors Git et seuls le meilleur et le plus récent sont
+conservés.
+
+### Résultat Phase 4C
+
+Le run seed 42 a exécuté 141 steps sans NaN, Inf, erreur CUDA ni step optimizer
+fp16 ignoré. Le meilleur checkpoint `checkpoint-000140` a été rechargé avec
+succès.
+
+| Métrique validation | Whisper Tiny baseline | Meilleur checkpoint |
+|---|---:|---:|
+| WER micro | 1,154527 | 0,782165 |
+| CER micro | 0,717216 | 0,348294 |
+| Validation loss | 5,267802 | 1,229892 |
+| RTF | 0,012340 | 0,018742 |
+| Latence moyenne (s) | 0,054136 | 0,082223 |
+
+- réduction WER absolue : `0,372362` ;
+- réduction WER relative : `32,25 %` ;
+- réduction CER absolue : `0,368922` ;
+- réduction CER relative : `51,44 %` ;
+- prédictions avec moins/autant/plus d'erreurs de mots :
+  `461 / 89 / 50` ;
+- durée du train incluant les validations régulières : `782,980 s` ;
+- pic VRAM : `1 957,83 MiB` ;
+- taille du meilleur checkpoint : `454 359 808` octets.
+
+Ces résultats mesurent une amélioration sur validation, pas sur le test final.
+Le modèle adapté reste local et non publiable. La Phase 4C ne déclenche pas
+l'entraînement complet : celui-ci exige une nouvelle décision explicite.

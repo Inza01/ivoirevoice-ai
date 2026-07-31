@@ -1,0 +1,62 @@
+{
+  "excluded_invalid_train_or_validation": {},
+  "final_holdout": {
+    "access_policy": "metadata_partition_only_never_decode_or_transcribe_phase_4c",
+    "audio_count": 2624,
+    "audio_decoded": false
+  },
+  "integrity_violations": {
+    "missing_pilot_ids": 0,
+    "pilot_ids_outside_test": 0,
+    "train_test_hash_overlap": 0,
+    "train_test_id_overlap": 0,
+    "train_validation_hash_overlap": 0,
+    "train_validation_id_overlap": 0,
+    "validation_test_hash_overlap": 0,
+    "validation_test_id_overlap": 0
+  },
+  "manifest_sha256": "3b680d108b8d2d106bf04708d79ea54599c9f998cba289356ae4ba0ff36e5572",
+  "overall_passed": true,
+  "pilot_test": {
+    "audio_count": 150,
+    "audio_decoded": false,
+    "source": "historical_test_pilot_metadata_only"
+  },
+  "privacy": {
+    "contains_audio": false,
+    "contains_local_paths": false,
+    "contains_real_speaker_names": false,
+    "contains_sample_identifiers": false
+  },
+  "schema_version": 1,
+  "seed": 42,
+  "selection_sha256": "967eb9fe345e912f36b22a50457520a767a2457243c34098b687137c9bfcff55",
+  "train": {
+    "audio_count": 2250,
+    "duration_seconds": {
+      "maximum": 9.8685,
+      "median": 3.947375,
+      "minimum": 0.7430625
+    },
+    "speaker_count": 15,
+    "target_word_count": {
+      "maximum": 31,
+      "median": 9.0,
+      "minimum": 1
+    }
+  },
+  "validation": {
+    "audio_count": 600,
+    "duration_seconds": {
+      "maximum": 9.8220625,
+      "median": 3.970625,
+      "minimum": 1.091375
+    },
+    "speaker_count": 3,
+    "target_word_count": {
+      "maximum": 28,
+      "median": 9.0,
+      "minimum": 1
+    }
+  }
+}

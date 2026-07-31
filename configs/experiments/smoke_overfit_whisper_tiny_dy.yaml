@@ -12,6 +12,7 @@ experiment:
     - baselines/baseline-dy-whisper-tiny-pilot/predictions_private.csv
     - baselines/baseline-dy-whisper-small-pilot/predictions_private.csv
   output_directory: training/smoke_overfit_whisper_tiny_dy
+  report_output_directory: reports/training
   sample_count: 16
   minimum_correct_samples: 10
   canonical_text_column: target_text_mvp

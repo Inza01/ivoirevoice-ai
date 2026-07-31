@@ -7,6 +7,7 @@ import csv
 import importlib
 import json
 import math
+import os
 import random
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -37,6 +38,7 @@ class PreparedSample:
 
     row: ManifestRow
     input_features: Any
+    attention_mask: Any
     labels: Any
 
 
@@ -76,9 +78,11 @@ def _write_private_predictions(
         writer = csv.DictWriter(
             stream,
             fieldnames=(
-                "utterance_id",
-                "speaker_id",
-                "reference",
+                "audio_id_anonymized",
+                "speaker_id_anonymized",
+                "text_raw",
+                "text_no_tones",
+                "target_text_mvp",
                 "prediction_before",
                 "prediction_after",
             ),
@@ -90,9 +94,11 @@ def _write_private_predictions(
         ):
             writer.writerow(
                 {
-                    "utterance_id": sample.row.utterance_id,
-                    "speaker_id": sample.row.speaker_id,
-                    "reference": sample.row.target_text,
+                    "audio_id_anonymized": sample.row.utterance_id,
+                    "speaker_id_anonymized": sample.row.speaker_id,
+                    "text_raw": sample.row.text_raw,
+                    "text_no_tones": sample.row.text_no_tones,
+                    "target_text_mvp": sample.row.target_text,
                     "prediction_before": prediction_before,
                     "prediction_after": prediction_after,
                 }
@@ -101,6 +107,7 @@ def _write_private_predictions(
 
 
 def _seed_everything(seed: int, torch: Any) -> None:
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     random.seed(seed)
     try:
         numpy = importlib.import_module("numpy")
@@ -110,9 +117,13 @@ def _seed_everything(seed: int, torch: Any) -> None:
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-    torch.use_deterministic_algorithms(True, warn_only=True)
+    torch.use_deterministic_algorithms(True)
     if hasattr(torch.backends, "cudnn"):
         torch.backends.cudnn.benchmark = False
+    if torch.cuda.is_available():
+        torch.backends.cuda.enable_flash_sdp(False)
+        torch.backends.cuda.enable_mem_efficient_sdp(False)
+        torch.backends.cuda.enable_math_sdp(True)
 
 
 def _load_audio(path: Path, expected_rate: int) -> Any:
@@ -150,15 +161,36 @@ def _prepare_samples(
     prepared: list[PreparedSample] = []
     for row in rows:
         audio = _load_audio(settings.dataset_root / row.audio_path, expected_rate)
-        features = processor.feature_extractor(
+        actual_duration = float(audio.size) / expected_rate
+        if actual_duration > 30.0:
+            raise ConfigError(
+                "Un audio validé dépasse les 30 secondes acceptées sans découpage par Whisper."
+            )
+        encoded = processor.feature_extractor(
             audio,
             sampling_rate=expected_rate,
             return_tensors="pt",
-        ).input_features[0]
+            return_attention_mask=True,
+        )
+        features = encoded.input_features[0]
+        attention_mask = encoded.attention_mask[0]
         labels = processor.tokenizer(row.target_text, return_tensors="pt").input_ids[0]
         if int(labels.numel()) < 2:
             raise ConfigError("Un label tokenisé est vide ou invalide.")
-        prepared.append(PreparedSample(row=row, input_features=features, labels=labels))
+        if not bool(features.isfinite().all()):
+            raise ConfigError("Les features Whisper contiennent NaN ou Inf.")
+        if not bool(attention_mask.isfinite().all()):
+            raise ConfigError("Le masque d'attention Whisper contient NaN ou Inf.")
+        if not bool(labels.isfinite().all()):
+            raise ConfigError("Les labels Whisper contiennent NaN ou Inf.")
+        prepared.append(
+            PreparedSample(
+                row=row,
+                input_features=features,
+                attention_mask=attention_mask,
+                labels=labels,
+            )
+        )
     return tuple(prepared)
 
 
@@ -166,14 +198,18 @@ def _collate(
     samples: Sequence[PreparedSample],
     indices: Sequence[int],
     torch: Any,
-) -> tuple[Any, Any]:
+) -> tuple[Any, Any, Any]:
     features = torch.stack([samples[index].input_features for index in indices])
+    attention_masks = torch.stack([samples[index].attention_mask for index in indices])
     maximum = max(int(samples[index].labels.numel()) for index in indices)
     labels = torch.full((len(indices), maximum), -100, dtype=torch.long)
     for batch_index, sample_index in enumerate(indices):
         sample_labels = samples[sample_index].labels
         labels[batch_index, : sample_labels.numel()] = sample_labels
-    return features, labels
+        padding = labels[batch_index, sample_labels.numel() :]
+        if padding.numel() and not bool((padding == -100).all()):
+            raise ConfigError("Le padding des labels doit être intégralement égal à -100.")
+    return features, attention_masks, labels
 
 
 def _prediction_metrics(
@@ -221,8 +257,10 @@ def _generate_predictions(
     with torch.inference_mode():
         for sample in samples:
             input_features = sample.input_features.unsqueeze(0).to(device)
+            attention_mask = sample.attention_mask.unsqueeze(0).to(device)
             generated = model.generate(
                 input_features=input_features,
+                attention_mask=attention_mask,
                 task="transcribe",
                 do_sample=False,
                 max_new_tokens=min(maximum_label_length + 12, 96),
@@ -272,16 +310,30 @@ def _train(
             order.extend(torch.randperm(len(samples), generator=generator).tolist())
         indices = order[cursor : cursor + settings.batch_size]
         cursor += settings.batch_size
-        features, labels = _collate(samples, indices, torch)
+        features, attention_mask, labels = _collate(samples, indices, torch)
         features = features.to(device)
+        attention_mask = attention_mask.to(device)
         labels = labels.to(device)
+        model_device = next(model.parameters()).device
+        if (
+            features.device != model_device
+            or attention_mask.device != model_device
+            or labels.device != model_device
+        ):
+            raise ConfigError(
+                "Le modèle, les features et les labels ne sont pas sur le même device."
+            )
         optimizer.zero_grad(set_to_none=True)
         with torch.autocast(
             device_type=device_name,
             dtype=autocast_dtype,
             enabled=autocast_enabled,
         ):
-            outputs = model(input_features=features, labels=labels)
+            outputs = model(
+                input_features=features,
+                attention_mask=attention_mask,
+                labels=labels,
+            )
             loss = outputs.loss
         loss_value = float(loss.detach().cpu())
         if settings.stop_on_nan and not math.isfinite(loss_value):
@@ -317,12 +369,119 @@ def _loss_summary(history: Sequence[dict[str, Any]]) -> dict[str, Any]:
         or int(item["step"]) == len(history)
     ]
     return {
+        "first_step_loss": float(history[0]["loss"]),
+        "last_step_loss": float(history[-1]["loss"]),
         "initial_window_size": window,
         "initial_mean_loss": first_mean,
         "final_mean_loss": final_mean,
         "loss_reduction_fraction": reduction,
         "checkpoints": checkpoints,
     }
+
+
+def _write_loss_plot(path: Path, history: Sequence[dict[str, Any]]) -> None:
+    """Render a dependency-light PNG loss curve with Pillow."""
+
+    try:
+        image_module = importlib.import_module("PIL.Image")
+        draw_module = importlib.import_module("PIL.ImageDraw")
+    except ImportError as exc:
+        raise ConfigError("Pillow est requis pour produire la courbe PNG.") from exc
+    width, height = 1000, 600
+    left, top, right, bottom = 90, 60, 960, 520
+    image = image_module.new("RGB", (width, height), "white")
+    draw = draw_module.Draw(image)
+    draw.rectangle((left, top, right, bottom), outline="#222222", width=2)
+    losses = [float(item["loss"]) for item in history]
+    minimum, maximum = min(losses), max(losses)
+    span = maximum - minimum or 1.0
+    denominator = max(1, len(losses) - 1)
+    points = [
+        (
+            left + (right - left) * index / denominator,
+            bottom - (bottom - top) * (loss - minimum) / span,
+        )
+        for index, loss in enumerate(losses)
+    ]
+    draw.line(points, fill="#0057b8", width=4)
+    draw.text((left, 20), "Whisper Tiny smoke-overfit - training loss", fill="#111111")
+    draw.text((left, bottom + 20), f"step 1 -> {len(history)}", fill="#111111")
+    draw.text((10, top), f"max {maximum:.4f}", fill="#111111")
+    draw.text((10, bottom - 10), f"min {minimum:.4f}", fill="#111111")
+    temporary = path.with_name(f"{path.stem}.tmp{path.suffix}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(temporary, format="PNG")
+    temporary.replace(path)
+
+
+def _write_smoke_report(
+    path: Path,
+    metrics: Mapping[str, Any],
+) -> None:
+    loss = cast(Mapping[str, Any], metrics["loss"])
+    before_metrics = cast(Mapping[str, Any], metrics["micro_train_metrics_before"])
+    after_metrics = cast(Mapping[str, Any], metrics["micro_train_metrics_after"])
+    checkpoints = cast(Sequence[Mapping[str, Any]], loss["checkpoints"])
+    checkpoint_rows = [
+        f"| {item['step']} | {float(item['loss']):.6f} |" for item in checkpoints
+    ]
+    content = "\n".join(
+        (
+            "# Smoke-overfit Whisper Tiny dioula — Phase 4B",
+            "",
+            "> Rapport public agrégé, sans identifiant, transcription ni prédiction. "
+            "Aucune conclusion de généralisation.",
+            "",
+            f"- Statut : **{metrics['validation_status']}**",
+            f"- Audios validés du train : {metrics['sample_count']}",
+            f"- Test officiel utilisé : {metrics['official_test_used']}",
+            f"- Validation utilisée : {metrics['validation_used']}",
+            f"- Pilote utilisé : {metrics['pilot_used']}",
+            f"- Modèle : `{metrics['model_id']}`",
+            f"- Révision : `{metrics['model_revision']}`",
+            f"- Tâche : `{metrics['task']}`",
+            f"- Langue : `{metrics['language_strategy']}`",
+            f"- Device : `{metrics['device']}`",
+            f"- Seed : {metrics['seed']}",
+            f"- Steps : {metrics['max_steps']}",
+            f"- Learning rate : {metrics['learning_rate']}",
+            f"- Temps total : {float(metrics['total_duration_seconds']):.3f} s",
+            f"- Mémoire GPU maximale : {float(metrics['max_gpu_memory_mib']):.2f} MiB",
+            "",
+            "## Loss de mémorisation",
+            "",
+            f"- Première loss : {float(loss['first_step_loss']):.6f}",
+            f"- Dernière loss : {float(loss['last_step_loss']):.6f}",
+            f"- Moyenne initiale : {float(loss['initial_mean_loss']):.6f}",
+            f"- Moyenne finale : {float(loss['final_mean_loss']):.6f}",
+            f"- Réduction des moyennes : {float(loss['loss_reduction_fraction']):.2%}",
+            "",
+            "| Step | Loss |",
+            "|---:|---:|",
+            *checkpoint_rows,
+            "",
+            "## Métriques sur le micro-train uniquement",
+            "",
+            "| Mesure de mémorisation | Avant | Après |",
+            "|---|---:|---:|",
+            f"| WER micro-train | {float(before_metrics['wer_micro']):.6f} | "
+            f"{float(after_metrics['wer_micro']):.6f} |",
+            f"| CER micro-train | {float(before_metrics['cer_micro']):.6f} | "
+            f"{float(after_metrics['cer_micro']):.6f} |",
+            "",
+            "Ces valeurs sont calculées sur les mêmes audios que ceux de l'entraînement. "
+            "Elles mesurent la mémorisation, pas la généralisation.",
+            "",
+            "## Anomalies d'exécution",
+            "",
+            f"- NaN/Inf : {metrics['nan_detected']}",
+            f"- Crash : {metrics['crash_detected']}",
+            f"- Fuite de split : {not bool(metrics['split_integrity_passed'])}",
+            "",
+        )
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
 
 
 def _preflight(
@@ -355,10 +514,17 @@ def _preflight(
 def run_smoke_overfit(settings: SmokeSettings) -> dict[str, Any]:
     """Run a bounded memorization diagnostic after all manual and split gates pass."""
 
+    total_started = perf_counter()
     dataset, rows, split_report = _preflight(settings)
     model_settings = load_whisper_settings(settings.model_config_path)
     if model_settings.model_id != settings.expected_model_id:
         raise ConfigError("Le modèle chargé ne correspond pas à Whisper Tiny.")
+    if model_settings.task != "transcribe":
+        raise ConfigError("Le smoke-overfit interdit toute tâche autre que transcribe.")
+    if model_settings.language is not None:
+        raise ConfigError(
+            "Whisper ne possède pas de token dyu : aucun token de langue ne doit être forcé."
+        )
     device_name, configured_dtype = runtime_labels(model_settings)
     try:
         torch = importlib.import_module("torch")
@@ -366,7 +532,7 @@ def run_smoke_overfit(settings: SmokeSettings) -> dict[str, Any]:
     except ImportError as exc:
         raise ConfigError("PyTorch et Transformers sont requis pour le smoke-overfit.") from exc
     _seed_everything(settings.seed, torch)
-    device = torch.device(device_name)
+    device = torch.device("cuda:0" if device_name == "cuda" else "cpu")
     model_settings.cache_dir.mkdir(parents=True, exist_ok=True)
     common_arguments = {
         "revision": model_settings.model_revision,
@@ -378,10 +544,16 @@ def run_smoke_overfit(settings: SmokeSettings) -> dict[str, Any]:
         model_settings.model_id,
         **common_arguments,
     )
+    processor.tokenizer.set_prefix_tokens(task="transcribe")
     model = transformers.WhisperForConditionalGeneration.from_pretrained(
         model_settings.model_id,
+        attn_implementation="eager",
         **common_arguments,
     ).to(device)
+    if next(model.parameters()).device != device:
+        raise ConfigError("Le modèle Whisper n'a pas été placé sur le device attendu.")
+    if device_name == "cuda":
+        torch.cuda.reset_peak_memory_stats(device)
     prepared = _prepare_samples(
         settings,
         rows,
@@ -390,6 +562,8 @@ def run_smoke_overfit(settings: SmokeSettings) -> dict[str, Any]:
     )
     output_directory = settings.artifacts_root / settings.output_relative_directory
     output_directory.mkdir(parents=True, exist_ok=True)
+    report_directory = settings.report_output_directory
+    report_directory.mkdir(parents=True, exist_ok=True)
     metadata: dict[str, Any] = {
         "schema_version": 1,
         "experiment_id": settings.experiment_id,
@@ -398,6 +572,7 @@ def run_smoke_overfit(settings: SmokeSettings) -> dict[str, Any]:
         "generalization_claim_allowed": False,
         "split": "train",
         "official_test_used": False,
+        "validation_used": False,
         "pilot_used": False,
         "seed": settings.seed,
         "manifest_sha256": dataset.manifest_sha256,
@@ -409,12 +584,31 @@ def run_smoke_overfit(settings: SmokeSettings) -> dict[str, Any]:
         "device": device_name,
         "configured_dtype": configured_dtype,
         "mixed_precision": settings.mixed_precision,
+        "task": "transcribe",
+        "forced_language_token": None,
+        "language_strategy": "multilingual_without_forced_dyu_token",
+        "canonical_text_column": settings.canonical_text_column,
         "max_steps": settings.max_steps,
         "batch_size": settings.batch_size,
         "learning_rate": settings.learning_rate,
         "save_model": False,
         "publication_allowed": False,
         "split_integrity_passed": split_report["overall_passed"],
+        "preflight_checks": {
+            "human_validation_minimum_met": len(rows)
+            >= settings.minimum_correct_samples,
+            "decoded_mono": True,
+            "decoded_sample_rate_hz": model_settings.expected_sampling_rate_hz,
+            "audio_duration_at_most_30_seconds": True,
+            "labels_non_empty": True,
+            "label_padding_value": -100,
+            "features_finite": True,
+            "attention_mask_present_and_finite": True,
+            "labels_finite": True,
+            "model_and_tensors_same_device": True,
+            "deterministic_algorithms_enforced": True,
+            "attention_implementation": "eager",
+        },
     }
     _write_json(output_directory / "run_metadata.json", metadata)
 
@@ -430,23 +624,46 @@ def run_smoke_overfit(settings: SmokeSettings) -> dict[str, Any]:
         )
         after_metrics = _prediction_metrics(prepared, predictions_after)
         loss = _loss_summary(history)
-        predictions_improved = (
-            float(after_metrics["wer_micro"]) < float(before_metrics["wer_micro"])
-            or float(after_metrics["cer_micro"]) < float(before_metrics["cer_micro"])
+        wer_improved = float(after_metrics["wer_micro"]) < float(
+            before_metrics["wer_micro"]
         )
-        success = (
-            float(loss["loss_reduction_fraction"]) >= 0.20
-            and predictions_improved
-            and all(math.isfinite(float(item["loss"])) for item in history)
+        cer_improved = float(after_metrics["cer_micro"]) < float(
+            before_metrics["cer_micro"]
         )
+        finite_loss = all(math.isfinite(float(item["loss"])) for item in history)
+        loss_clearly_decreased = float(loss["loss_reduction_fraction"]) >= 0.20
+        success = loss_clearly_decreased and wer_improved and cer_improved and finite_loss
+        partial = finite_loss and (loss_clearly_decreased or wer_improved or cer_improved)
+        validation_status = (
+            "réussi" if success else "partiellement réussi" if partial else "échoué"
+        )
+        if device_name == "cuda":
+            torch.cuda.synchronize(device)
+            max_gpu_memory_mib = float(torch.cuda.max_memory_allocated(device)) / 1024**2
+        else:
+            max_gpu_memory_mib = 0.0
+        total_duration = perf_counter() - total_started
         metrics = {
             **metadata,
             "status": "succeeded" if success else "criteria_not_met",
+            "validation_status": validation_status,
             "loss": loss,
             "micro_train_metrics_before": before_metrics,
             "micro_train_metrics_after": after_metrics,
-            "predictions_improved": predictions_improved,
+            "wer_improved": wer_improved,
+            "cer_improved": cer_improved,
+            "loss_clearly_decreased": loss_clearly_decreased,
             "nan_detected": False,
+            "crash_detected": False,
+            "training_duration_seconds": float(history[-1]["elapsed_seconds"]),
+            "total_duration_seconds": total_duration,
+            "max_gpu_memory_mib": max_gpu_memory_mib,
+            "report_files": [
+                "smoke_overfit_metrics.json",
+                "smoke_overfit_report.md",
+                "smoke_overfit_loss.csv",
+                "smoke_overfit_loss.png",
+            ],
             "smoke_overfit_succeeded": success,
         }
         _write_private_predictions(
@@ -455,6 +672,13 @@ def run_smoke_overfit(settings: SmokeSettings) -> dict[str, Any]:
             predictions_before,
             predictions_after,
         )
+        _write_loss_history(report_directory / "smoke_overfit_loss.csv", history)
+        _write_loss_plot(report_directory / "smoke_overfit_loss.png", history)
+        _write_smoke_report(
+            report_directory / "smoke_overfit_report.md",
+            metrics,
+        )
+        _write_json(report_directory / "smoke_overfit_metrics.json", metrics)
         _write_json(output_directory / "metrics.json", metrics)
         _write_json(output_directory / "run_metadata.json", metrics)
         return metrics
@@ -463,6 +687,8 @@ def run_smoke_overfit(settings: SmokeSettings) -> dict[str, Any]:
             {
                 "status": "failed",
                 "error_type": type(exc).__name__,
+                "validation_status": "échoué",
+                "crash_detected": True,
                 "smoke_overfit_succeeded": False,
             }
         )
@@ -496,7 +722,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"WER {before['wer_micro']:.4f} -> {after['wer_micro']:.4f}, "
         f"CER {before['cer_micro']:.4f} -> {after['cer_micro']:.4f}"
     )
-    status = "RÉUSSI" if metrics["smoke_overfit_succeeded"] else "NON VALIDÉ"
+    status = str(metrics["validation_status"]).upper()
     print(f"Smoke-overfit : {status}. Aucune métrique de généralisation n'est revendiquée.")
     return 0 if metrics["smoke_overfit_succeeded"] else 1
 

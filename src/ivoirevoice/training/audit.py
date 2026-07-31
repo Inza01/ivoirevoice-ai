@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path, PurePosixPath
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 from ivoirevoice.data.audio import sha256_file
 from ivoirevoice.exceptions import ConfigError, IvoireVoiceError
@@ -76,6 +76,18 @@ class AuditedDataset:
     rows: tuple[ManifestRow, ...]
     manifest_sha256: str
     dataset_version: str
+
+
+class DatasetAuditSettings(Protocol):
+    """Minimal settings surface required to validate the frozen dataset."""
+
+    @property
+    def manifest_path(self) -> Path:
+        """Frozen CSV manifest."""
+
+    @property
+    def dataset_metadata_path(self) -> Path:
+        """Frozen dataset metadata."""
 
 
 def _mapping(value: object, name: str) -> dict[str, Any]:
@@ -145,7 +157,7 @@ def _parse_manifest_row(raw: dict[str, str], line_number: int) -> ManifestRow:
     )
 
 
-def load_audited_dataset(settings: SmokeSettings) -> AuditedDataset:
+def load_audited_dataset(settings: DatasetAuditSettings) -> AuditedDataset:
     """Validate governance, provenance and the complete frozen manifest."""
 
     metadata = _load_json(settings.dataset_metadata_path, "les métadonnées v0.1")

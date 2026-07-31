@@ -29,6 +29,7 @@ class SmokeSettings:
     artifacts_root: Path
     reports_root: Path
     output_relative_directory: Path
+    report_output_directory: Path
     pilot_prediction_files: tuple[Path, ...]
     sample_count: int
     minimum_correct_samples: int
@@ -174,6 +175,13 @@ def load_smoke_settings(path: str | Path) -> SmokeSettings:
         output_relative_directory=_safe_relative_path(
             _required_string(experiment, "output_directory"),
             "output_directory",
+        ),
+        report_output_directory=(
+            Path(__file__).resolve().parents[3]
+            / _safe_relative_path(
+                _required_string(experiment, "report_output_directory"),
+                "report_output_directory",
+            )
         ),
         pilot_prediction_files=pilot_files,
         sample_count=sample_count,

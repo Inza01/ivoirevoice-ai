@@ -1,0 +1,121 @@
+{
+  "batch_size": 4,
+  "canonical_text_column": "target_text_mvp",
+  "cer_improved": true,
+  "configured_dtype": "float16",
+  "crash_detected": false,
+  "device": "cuda",
+  "experiment_id": "smoke-overfit-whisper-tiny-dy",
+  "forced_language_token": null,
+  "generalization_claim_allowed": false,
+  "language_strategy": "multilingual_without_forced_dyu_token",
+  "learning_rate": 0.0001,
+  "loss": {
+    "checkpoints": [
+      {
+        "loss": 4.958413600921631,
+        "step": 1
+      },
+      {
+        "loss": 0.8677672147750854,
+        "step": 10
+      },
+      {
+        "loss": 0.15836919844150543,
+        "step": 20
+      },
+      {
+        "loss": 0.229862779378891,
+        "step": 30
+      },
+      {
+        "loss": 0.13364249467849731,
+        "step": 40
+      },
+      {
+        "loss": 0.013326535932719707,
+        "step": 50
+      },
+      {
+        "loss": 0.02841498889029026,
+        "step": 60
+      },
+      {
+        "loss": 0.02887333184480667,
+        "step": 70
+      },
+      {
+        "loss": 0.09258107095956802,
+        "step": 80
+      }
+    ],
+    "final_mean_loss": 0.021899804892018437,
+    "first_step_loss": 4.958413600921631,
+    "initial_mean_loss": 2.3850139677524567,
+    "initial_window_size": 10,
+    "last_step_loss": 0.09258107095956802,
+    "loss_reduction_fraction": 0.9908177456450472
+  },
+  "loss_clearly_decreased": true,
+  "manifest_sha256": "3b680d108b8d2d106bf04708d79ea54599c9f998cba289356ae4ba0ff36e5572",
+  "max_gpu_memory_mib": 2752.8466796875,
+  "max_steps": 80,
+  "micro_train_metrics_after": {
+    "cer_micro": 0.003125,
+    "wer_micro": 0.006493506493506494,
+    "word_deletions": 0,
+    "word_insertions": 1,
+    "word_substitutions": 0
+  },
+  "micro_train_metrics_before": {
+    "cer_micro": 0.5,
+    "wer_micro": 0.974025974025974,
+    "word_deletions": 58,
+    "word_insertions": 3,
+    "word_substitutions": 89
+  },
+  "mixed_precision": "auto",
+  "model_id": "openai/whisper-tiny",
+  "model_revision": "be0ba7c2f24f0127b27863a23a08002af4c2c279",
+  "nan_detected": false,
+  "objective": "memorization_diagnostic_only",
+  "official_test_used": false,
+  "pilot_used": false,
+  "preflight_checks": {
+    "attention_implementation": "eager",
+    "attention_mask_present_and_finite": true,
+    "audio_duration_at_most_30_seconds": true,
+    "decoded_mono": true,
+    "decoded_sample_rate_hz": 16000,
+    "deterministic_algorithms_enforced": true,
+    "features_finite": true,
+    "human_validation_minimum_met": true,
+    "label_padding_value": -100,
+    "labels_finite": true,
+    "labels_non_empty": true,
+    "model_and_tensors_same_device": true
+  },
+  "publication_allowed": false,
+  "report_files": [
+    "smoke_overfit_metrics.json",
+    "smoke_overfit_report.md",
+    "smoke_overfit_loss.csv",
+    "smoke_overfit_loss.png"
+  ],
+  "sample_count": 16,
+  "save_model": false,
+  "schema_version": 1,
+  "seed": 42,
+  "selection_sha256": "69001213887156a59259218427a29fa81dd1d04cd88bad427e9ffafd70d97f16",
+  "smoke_overfit_succeeded": true,
+  "speaker_count": 15,
+  "split": "train",
+  "split_integrity_passed": true,
+  "status": "succeeded",
+  "task": "transcribe",
+  "total_duration_seconds": 27.234756723999453,
+  "training_duration_seconds": 11.615816678000556,
+  "validation_status": "réussi",
+  "validation_used": false,
+  "wer_improved": true
+}
