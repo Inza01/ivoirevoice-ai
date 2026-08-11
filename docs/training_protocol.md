@@ -227,6 +227,50 @@ Toutes les commandes exigent les mêmes variables locales que la Phase 4C :
 `DIOULA_DATA_DIR`, `ARTIFACTS_DIR`, `MODEL_CACHE_DIR`, `CHECKPOINT_DIR` et
 `DIOULA_PILOT_MODEL_PATH`.
 
+### Terminal development checkpoint validation
+
+Cet amendement méthodologique a été décidé avant tout accès au
+`final_holdout`. Le run development a terminé à 1 720 updates réussies après
+deux skips AMP, alors que son dernier jalon périodique était le step 1 507. Le
+checkpoint terminal existait donc avant l'amendement mais ne faisait pas encore
+partie des candidats évalués sur validation.
+
+La décision provisoire historique reste tracée : `checkpoint-001507`, avec un
+budget de refit de 1 798 steps. Elle n'est pas écrasée par l'évaluation
+terminale.
+
+Après versionnement de l'amendement et exécution d'un nouveau preflight portant
+le même commit, la commande suivante évalue une seule fois le checkpoint
+terminal sur les 2 661 audios et 3 locuteurs de validation :
+
+```bash
+make full-finetune-development-final-validation \
+  IVOIREVOICE_DIOULA_PILOT_MODEL_PATH="/chemin/vers/checkpoint-000140" \
+  IVOIREVOICE_DIOULA_DATA_DIR="/chemin/vers/voices_data"
+```
+
+Le stage vérifie que le development est gelé, que le checkpoint sélectionné et
+le checkpoint terminal appartiennent au même run, qu'aucun refit n'a commencé
+et qu'aucun reçu final n'existe. Il matérialise uniquement les lignes
+`validation`, recharge le processor pilote inchangé et appelle exactement
+`_evaluate_validation`, comme les jalons périodiques. Il ne crée ni optimizer,
+scheduler ou scaler, n'appelle aucun backward et ne sauvegarde aucun modèle.
+
+Le classement reste immuable : WER micro, CER micro, validation loss, puis step
+le plus précoce. Le budget proposé est calculé par `refit_step_budget`, sans
+constante spécifique au résultat. Les artefacts sont :
+
+- un rapport privé avec les prédictions sous la racine externe des artefacts ;
+- un rapport public agrégé dans le sous-répertoire externe `shareable` ;
+- aucune modification de `development_decision.json`.
+
+Une seconde invocation avec la même identité réutilise le rapport. Une identité
+différente ou une paire d'artefacts incomplète provoque un arrêt, afin
+d'interdire plusieurs évaluations permettant de choisir après coup. La
+sélection proposée ne pourra être appliquée qu'après l'autorisation humaine
+explicite `FINALIZE DEVELOPMENT SELECTION APPROUVÉ` et par une commande dédiée
+distincte. Le stage n'implémente pas cette finalisation.
+
 ### Diagnostic FP16 train-only
 
 Le rapport unique est écrit hors Git sous

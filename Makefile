@@ -28,7 +28,8 @@ CONFIRM_FINAL_HOLDOUT ?= $(IVOIREVOICE_CONFIRM_FINAL_HOLDOUT)
 .PHONY: audit-dioula-training review-dioula-training smoke-overfit-dy
 .PHONY: pilot-finetune-dy
 .PHONY: full-finetune-preflight full-finetune-fp16-diagnostic
-.PHONY: full-finetune-dev full-finetune-refit
+.PHONY: full-finetune-dev full-finetune-development-final-validation
+.PHONY: full-finetune-refit
 .PHONY: evaluate-final-holdout-dy
 
 setup:
@@ -206,6 +207,15 @@ full-finetune-dev:
 	IVOIREVOICE_DIOULA_PILOT_MODEL_PATH="$(DIOULA_PILOT_MODEL_PATH)" \
 	$(VENV_PYTHON) -m ivoirevoice.training.full_finetune \
 		--config $(FULL_TRAINING_CONFIG) --stage development
+
+full-finetune-development-final-validation:
+	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
+	IVOIREVOICE_ARTIFACTS_DIR="$(ARTIFACTS_DIR)" \
+	IVOIREVOICE_MODEL_CACHE_DIR="$(MODEL_CACHE_DIR)" \
+	IVOIREVOICE_CHECKPOINT_DIR="$(CHECKPOINT_DIR)" \
+	IVOIREVOICE_DIOULA_PILOT_MODEL_PATH="$(DIOULA_PILOT_MODEL_PATH)" \
+	$(VENV_PYTHON) -m ivoirevoice.training.full_finetune \
+		--config $(FULL_TRAINING_CONFIG) --stage development-final-validation
 
 full-finetune-refit:
 	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \

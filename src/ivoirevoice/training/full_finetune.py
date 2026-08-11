@@ -67,6 +67,7 @@ CONFIG_PATH = Path("configs/experiments/full_finetune_whisper_tiny_dy.yaml")
 TRAINER_STATE_FILENAME = "full_trainer_state.json"
 DEVELOPMENT_DECISION_FILENAME = "development_decision.json"
 FINAL_MODEL_MANIFEST_FILENAME = "final_model_manifest.json"
+REFIT_STARTED_FILENAME = "refit_started.json"
 FINAL_EVALUATION_RECEIPT_FILENAME = "final_holdout_evaluation_receipt.json"
 FINAL_EVALUATION_METRICS_FILENAME = "final_holdout_metrics.json"
 PREFLIGHT_REPORT_FILENAME = "preflight_report.json"
@@ -888,6 +889,25 @@ def run_refit(settings: FullTrainingSettings) -> dict[str, Any]:
         device=device,
     )
     model, processor, collator, optimizer, scheduler, scaler, state = runtime
+    refit_started_path = settings.artifact_output_directory / REFIT_STARTED_FILENAME
+    refit_started = {
+        "schema_version": 1,
+        "status": "started",
+        "code_commit": context.code_commit,
+        "config_sha256": context.config_sha256,
+        "manifest_sha256": context.dataset.manifest_sha256,
+        "initial_checkpoint_sha256": context.initial_checkpoint_sha256,
+        "refit_selection_sha256": context.selection.refit_selection_sha256,
+        "refit_step_budget": total_steps,
+    }
+    if refit_started_path.is_file():
+        require_matching_identity(
+            load_json_object(refit_started_path),
+            refit_started,
+            description="Le marqueur de démarrage du refit",
+        )
+    else:
+        write_json_atomic(refit_started_path, refit_started)
     if state.get("completed") is True:
         return load_json_object(
             settings.artifact_output_directory / FINAL_MODEL_MANIFEST_FILENAME
@@ -1338,6 +1358,7 @@ def _parse_args() -> argparse.Namespace:
             "preflight",
             "fp16-diagnostic",
             "development",
+            "development-final-validation",
             "refit",
             "final-evaluation",
         ),
@@ -1361,6 +1382,12 @@ def main() -> int:
             from ivoirevoice.training.fp16_diagnostic import run_fp16_diagnostic
 
             result = run_fp16_diagnostic(settings)
+        elif args.stage == "development-final-validation":
+            from ivoirevoice.training.development_final_validation import (
+                run_development_final_validation,
+            )
+
+            result = run_development_final_validation(settings)
         else:
             result = runners[args.stage](settings)
     except IvoireVoiceError as exc:
