@@ -200,16 +200,23 @@ Aucune commande n’enchaîne automatiquement l’étape suivante.
    train, les 2 661 audios validation, leurs empreintes, le checkpoint pilote,
    l’espace disque et CUDA/FP16. Il recharge `checkpoint-000140` et effectue
    une inférence de contrôle.
-2. `make full-finetune-dev` repart des poids pilotes avec un optimiseur et un
+2. `make full-finetune-fp16-diagnostic` est un diagnostic numérique borné et
+   non reprenable. Il repart de `checkpoint-000140` avec des états neufs,
+   exécute au plus 32 tentatives d’optimizer sur `train` uniquement et ne crée
+   ni checkpoint ni modèle. Il n’ouvre pas le pilote historique et ne construit
+   aucune ligne validation, test ou final-holdout. Un skip AMP est journalisé,
+   n’avance ni le scheduler ni le compteur de steps réussis, puis le diagnostic
+   continue. Cette politique est strictement locale au diagnostic.
+3. `make full-finetune-dev` repart des poids pilotes avec un optimiseur et un
    scheduler neufs. Le développement utilise uniquement train, avec validation
    aux quarts d’époque, jusqu’à 1 722 steps et early stopping de patience 3.
-3. Le meilleur step est gelé selon WER micro, CER micro, loss validation puis
+4. Le meilleur step est gelé selon WER micro, CER micro, loss validation puis
    step le plus précoce. Le budget refit vaut
    `floor((best_step / 861) × 1027 + 0,5)`.
-4. `make full-finetune-refit` repart à nouveau des poids pilotes avec des états
+5. `make full-finetune-refit` repart à nouveau des poids pilotes avec des états
    d’optimisation neufs, puis utilise exactement les 16 425 audios
    train+validation. Aucune validation n’est décodée pendant le refit.
-5. L’unique évaluation finale exige explicitement :
+6. L’unique évaluation finale exige explicitement :
 
    ```bash
    make evaluate-final-holdout-dy \
@@ -219,6 +226,44 @@ Aucune commande n’enchaîne automatiquement l’étape suivante.
 Toutes les commandes exigent les mêmes variables locales que la Phase 4C :
 `DIOULA_DATA_DIR`, `ARTIFACTS_DIR`, `MODEL_CACHE_DIR`, `CHECKPOINT_DIR` et
 `DIOULA_PILOT_MODEL_PATH`.
+
+### Diagnostic FP16 train-only
+
+Le rapport unique est écrit hors Git sous
+`artifacts/training/full_finetune_whisper_tiny_dy/fp16_diagnostic/` et un
+répertoire existant provoque un arrêt afin de ne jamais écraser une observation
+antérieure. `fp16_diagnostic_summary.json` contient les statistiques numériques
+par tentative et uniquement des hashes HMAC irréversibles produits avec une clé
+éphémère non persistée. Il ne contient ni transcription, texte, speaker ID,
+audio ou chemin local.
+
+La finitude des gradients est observée après `GradScaler.unscale_` et avant le
+clipping. Le clipping conserve `max_grad_norm=1.0`. La baisse de scale après
+`GradScaler.update()` reste le signal public d’un optimizer step ignoré. Le
+diagnostic classe ensuite l’observation comme calibration initiale, skip
+occasionnel, overflows répétés, signal lié aux caractéristiques techniques des
+batches ou autre instabilité numérique. Une seule baisse de scale n’est pas
+considérée comme un échec.
+
+La prise en charge BF16 n’est pas activée. Sa capacité matérielle doit seulement
+être vérifiée sur l’hôte GPU, sans modifier le protocole :
+
+```bash
+.venv/bin/python -c \
+  'import torch; print(torch.cuda.is_bf16_supported())'
+```
+
+Après versionnement de l’implémentation et nouveau préflight correspondant au
+même commit/configuration, le diagnostic se lance explicitement avec :
+
+```bash
+make full-finetune-fp16-diagnostic \
+  IVOIREVOICE_DIOULA_PILOT_MODEL_PATH="/chemin/vers/checkpoint-000140" \
+  IVOIREVOICE_DIOULA_DATA_DIR="/chemin/vers/voices_data"
+```
+
+Le vrai `full-finetune-dev` conserve sa politique actuelle : tout skip AMP
+interrompt encore le run tant que le rapport diagnostique n’a pas été revu.
 
 ### Invariants complets
 

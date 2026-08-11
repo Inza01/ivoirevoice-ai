@@ -1247,7 +1247,13 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--stage",
         required=True,
-        choices=("preflight", "development", "refit", "final-evaluation"),
+        choices=(
+            "preflight",
+            "fp16-diagnostic",
+            "development",
+            "refit",
+            "final-evaluation",
+        ),
     )
     return parser.parse_args()
 
@@ -1264,7 +1270,12 @@ def main() -> int:
             "refit": run_refit,
             "final-evaluation": run_final_evaluation,
         }
-        result = runners[args.stage](settings)
+        if args.stage == "fp16-diagnostic":
+            from ivoirevoice.training.fp16_diagnostic import run_fp16_diagnostic
+
+            result = run_fp16_diagnostic(settings)
+        else:
+            result = runners[args.stage](settings)
     except IvoireVoiceError as exc:
         print(f"ERREUR: {exc}")
         return 1

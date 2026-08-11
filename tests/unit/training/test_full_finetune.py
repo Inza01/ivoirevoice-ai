@@ -78,6 +78,7 @@ def test_full_settings_lock_protocol_and_external_outputs(
     assert settings.train_audio_count == 13_764
     assert settings.validation_audio_count == 2_661
     assert settings.refit_audio_count == 16_425
+    assert settings.fp16_diagnostic_max_optimizer_attempts == 32
     assert settings.initial_checkpoint_path.name == "checkpoint-000140"
     assert settings.shareable_output_directory.is_relative_to(tmp_path / "artifacts")
 
@@ -90,6 +91,10 @@ def test_full_settings_lock_protocol_and_external_outputs(
         ({"forbidden_split": "validation"}, "forbidden_split"),
         ({"forced_language_token": "dyu"}, "forced_language_token"),
         ({"expected_model_revision": "a" * 40}, "expected_model_revision"),
+        (
+            {"fp16_diagnostic_max_optimizer_attempts": 31},
+            "fp16_diagnostic_max_optimizer_attempts",
+        ),
     ],
 )
 def test_full_settings_reject_protocol_drift(

@@ -60,6 +60,7 @@ class FullTrainingSettings:
     save_total_limit: int
     refit_save_steps: int
     refit_save_total_limit: int
+    fp16_diagnostic_max_optimizer_attempts: int
     max_audio_seconds: float
     minimum_free_disk_gib: float
     final_holdout_confirmation: str
@@ -77,6 +78,12 @@ class FullTrainingSettings:
     @property
     def refit_checkpoint_directory(self) -> Path:
         return self.checkpoint_directory / "refit"
+
+    @property
+    def fp16_diagnostic_output_directory(self) -> Path:
+        """Non-resumable numerical report root outside Git."""
+
+        return self.artifact_output_directory / "fp16_diagnostic"
 
     @property
     def shareable_output_directory(self) -> Path:
@@ -196,6 +203,7 @@ def load_full_training_settings(path: str | Path) -> FullTrainingSettings:
         "save_total_limit": 3,
         "refit_save_steps": 250,
         "refit_save_total_limit": 2,
+        "fp16_diagnostic_max_optimizer_attempts": 32,
         "max_audio_seconds": 30.0,
         "minimum_free_disk_gib": 15.0,
         "final_holdout_confirmation": "EVALUATE_FROZEN_MODEL_ONCE",
@@ -284,6 +292,9 @@ def load_full_training_settings(path: str | Path) -> FullTrainingSettings:
         refit_save_steps=_positive_int(experiment, "refit_save_steps"),
         refit_save_total_limit=_positive_int(
             experiment, "refit_save_total_limit"
+        ),
+        fp16_diagnostic_max_optimizer_attempts=_positive_int(
+            experiment, "fp16_diagnostic_max_optimizer_attempts"
         ),
         max_audio_seconds=_number(experiment, "max_audio_seconds"),
         minimum_free_disk_gib=_number(experiment, "minimum_free_disk_gib"),
