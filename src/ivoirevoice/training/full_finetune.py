@@ -858,7 +858,9 @@ def run_refit(settings: FullTrainingSettings) -> dict[str, Any]:
     )
     expected_decision = {
         "status": "frozen",
-        "code_commit": context.code_commit,
+        "development_selection_finalized": True,
+        "finalization_git_commit": context.code_commit,
+        "finalized_from": "development-final-validation",
         "config_sha256": context.config_sha256,
         "manifest_sha256": context.dataset.manifest_sha256,
         "refit_selection_sha256": context.selection.refit_selection_sha256,

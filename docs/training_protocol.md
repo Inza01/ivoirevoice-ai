@@ -266,10 +266,53 @@ constante spécifique au résultat. Les artefacts sont :
 
 Une seconde invocation avec la même identité réutilise le rapport. Une identité
 différente ou une paire d'artefacts incomplète provoque un arrêt, afin
-d'interdire plusieurs évaluations permettant de choisir après coup. La
-sélection proposée ne pourra être appliquée qu'après l'autorisation humaine
-explicite `FINALIZE DEVELOPMENT SELECTION APPROUVÉ` et par une commande dédiée
-distincte. Le stage n'implémente pas cette finalisation.
+d'interdire plusieurs évaluations permettant de choisir après coup.
+
+### Finalisation de la sélection development
+
+L'autorisation méthodologique `FINALIZE DEVELOPMENT SELECTION APPROUVÉ` a été
+donnée avant tout accès au `final_holdout`. Le finaliseur dédié ne réévalue
+aucun checkpoint : il lit uniquement la décision gelée, le rapport public
+agrégé de validation terminale et les métadonnées des checkpoints nécessaires
+à la vérification de leurs empreintes. Il ne construit aucun dataset, ne lit
+aucune transcription, ne charge aucun modèle et ne possède aucun chemin
+d'exécution vers un évaluateur.
+
+Le reçu public
+`configs/experiments/development_selection_finalization_approval.json` ancre le
+SHA-256 du rapport agrégé effectivement approuvé et les identités déjà
+confirmées. Il ne contient ni métrique, ni transcription, ni prédiction. Toute
+modification ultérieure du rapport, même avec une empreinte de validation au
+format correct, est ainsi refusée.
+
+Sur exactement les mêmes 2 661 audios de validation, `checkpoint-001720`
+remplace la sélection provisoire `checkpoint-001507`, car son WER micro est
+inférieur selon la politique gelée WER, CER, loss, puis step le plus précoce.
+L'ancienne décision et son budget de 1 798 steps restent dans l'historique.
+Le nouveau budget attendu de 2 052 steps est recalculé par
+`refit_step_budget(1720, 861, 1027)` ; ce résultat n'est pas une constante du
+finaliseur et la formule du protocole ne change pas.
+
+La mise à jour n'est autorisée que sur un commit propre, avant tout refit et
+avant tout reçu d'évaluation finale, avec la confirmation technique exacte :
+
+```bash
+make full-finetune-development-finalize-selection \
+  IVOIREVOICE_DIOULA_PILOT_MODEL_PATH="/chemin/vers/checkpoint-000140" \
+  IVOIREVOICE_DIOULA_DATA_DIR="/chemin/vers/voices_data" \
+  CONFIRM_DEVELOPMENT_SELECTION="FINALIZE_DEVELOPMENT_SELECTION_APPROVED"
+```
+
+Le stage recalcule `metric_rank`, vérifie les identités du run, de la
+configuration, des checkpoints et de la validation, puis remplace
+atomiquement `development_decision.json`. Une relance strictement identique ne
+réécrit rien et retourne `already_finalized_same_decision`; toute divergence
+provoque un arrêt. Son rapport partageable reste agrégé et hors Git.
+
+`checkpoint-001720` détermine uniquement le budget. Le refit repart toujours
+de `checkpoint-000140` sur les 16 425 audios et 18 locuteurs train+validation,
+avec optimizer, scheduler et GradScaler neufs, FP16, learning rate `1e-5`,
+batch par device 4, accumulation 4 et batch effectif 16.
 
 ### Diagnostic FP16 train-only
 
