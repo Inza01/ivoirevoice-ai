@@ -26,6 +26,152 @@ class StepGeometry:
     optimizer_steps_per_epoch: int
 
 
+@dataclass(frozen=True, slots=True)
+class OptimizerGroupResult:
+    """Outcome of one accumulated optimizer attempt."""
+
+    train_loss: float
+    scale_before: float
+    scale_after: float
+    optimizer_step_executed: bool
+    amp_skipped: bool
+
+
+def restore_runtime_states(
+    *,
+    checkpoint: Path,
+    optimizer: Any,
+    scheduler: Any,
+    scaler: Any,
+    torch: Any,
+    device: Any,
+) -> None:
+    """Restore every mutable runtime state required for a true resume."""
+
+    optimizer.load_state_dict(
+        torch.load(checkpoint / "optimizer.pt", map_location=device, weights_only=True)
+    )
+    scheduler.load_state_dict(
+        torch.load(checkpoint / "scheduler.pt", map_location=device, weights_only=True)
+    )
+    scaler.load_state_dict(
+        torch.load(checkpoint / "scaler.pt", map_location=device, weights_only=True)
+    )
+
+
+def initialize_or_validate_amp_state(
+    state: dict[str, Any],
+    scaler: Any,
+    *,
+    resumed: bool,
+) -> None:
+    """Initialize AMP provenance or reject an inconsistent resumed state."""
+
+    current_scale = float(scaler.get_scale())
+    if not resumed:
+        state["initial_grad_scale"] = current_scale
+        state["final_grad_scale"] = current_scale
+        return
+    required = {
+        "global_step",
+        "successful_optimizer_steps",
+        "optimizer_attempts",
+        "amp_skipped_steps",
+        "consecutive_amp_skips",
+        "max_consecutive_amp_skips_observed",
+        "initial_grad_scale",
+        "final_grad_scale",
+        "precision",
+    }
+    missing = sorted(required - state.keys())
+    if missing:
+        raise ConfigError(
+            "Le checkpoint de reprise ne contient pas l'état AMP complet "
+            f"(champs : {', '.join(missing)})."
+        )
+    successful = int(state["successful_optimizer_steps"])
+    skipped = int(state["amp_skipped_steps"])
+    attempts = int(state["optimizer_attempts"])
+    consecutive = int(state["consecutive_amp_skips"])
+    maximum = int(state["max_consecutive_amp_skips_observed"])
+    initial_scale = float(state["initial_grad_scale"])
+    final_scale = float(state["final_grad_scale"])
+    counters_valid = (
+        min(successful, skipped, attempts, consecutive, maximum) >= 0
+        and successful == int(state["global_step"])
+        and attempts == successful + skipped
+        and consecutive <= skipped
+        and maximum >= consecutive
+    )
+    scales_valid = (
+        math.isfinite(initial_scale)
+        and math.isfinite(final_scale)
+        and initial_scale > 0
+        and final_scale > 0
+        and final_scale == current_scale
+    )
+    if not counters_valid or not scales_valid or state["precision"] != "fp16":
+        raise ConfigError("L'état AMP du checkpoint de reprise est incohérent.")
+
+
+def amp_metrics(state: Mapping[str, Any]) -> dict[str, Any]:
+    """Return aggregate-only AMP provenance for local reports."""
+
+    return {
+        "precision": "fp16",
+        "initial_grad_scale": float(state["initial_grad_scale"]),
+        "final_grad_scale": float(state["final_grad_scale"]),
+        "amp_skipped_steps": int(state["amp_skipped_steps"]),
+        "successful_optimizer_steps": int(state["successful_optimizer_steps"]),
+        "optimizer_attempts": int(state["optimizer_attempts"]),
+        "consecutive_amp_skips": int(state["consecutive_amp_skips"]),
+        "max_consecutive_amp_skips_observed": int(
+            state["max_consecutive_amp_skips_observed"]
+        ),
+    }
+
+
+def apply_optimizer_outcome(
+    *,
+    state: dict[str, Any],
+    result: OptimizerGroupResult,
+    scheduler: Any,
+    max_consecutive_amp_skips: int,
+    stage: str,
+) -> bool:
+    """Advance update clocks only when GradScaler executed the optimizer step."""
+
+    if result.optimizer_step_executed == result.amp_skipped:
+        raise ConfigError("L'issue AMP de la tentative optimizer est incohérente.")
+    state["optimizer_attempts"] = int(state["optimizer_attempts"]) + 1
+    state["final_grad_scale"] = result.scale_after
+    if result.amp_skipped:
+        state["amp_skipped_steps"] = int(state["amp_skipped_steps"]) + 1
+        consecutive = int(state["consecutive_amp_skips"]) + 1
+        state["consecutive_amp_skips"] = consecutive
+        state["max_consecutive_amp_skips_observed"] = max(
+            int(state["max_consecutive_amp_skips_observed"]),
+            consecutive,
+        )
+        print(
+            f"{stage} amp_skip attempt={state['optimizer_attempts']} "
+            f"consecutive={consecutive}/{max_consecutive_amp_skips} "
+            f"scale={result.scale_before:.0f}->{result.scale_after:.0f}"
+        )
+        if consecutive > max_consecutive_amp_skips:
+            raise ConfigError(
+                "Instabilité FP16 : nombre maximal de skips AMP consécutifs dépassé "
+                f"({consecutive} > {max_consecutive_amp_skips}, "
+                f"scale {result.scale_before:.0f}->{result.scale_after:.0f})."
+            )
+        return False
+    scheduler.step()
+    state["global_step"] = int(state["global_step"]) + 1
+    state["successful_optimizer_steps"] = int(state["successful_optimizer_steps"]) + 1
+    state["consecutive_amp_skips"] = 0
+    return True
+
+
 def compute_step_geometry(
     audio_count: int,
     batch_size: int,

@@ -262,13 +262,34 @@ make full-finetune-fp16-diagnostic \
   IVOIREVOICE_DIOULA_DATA_DIR="/chemin/vers/voices_data"
 ```
 
-Le vrai `full-finetune-dev` conserve sa politique actuelle : tout skip AMP
-interrompt encore le run tant que le rapport diagnostique n’a pas été revu.
+Le vrai `full-finetune-dev` applique désormais la politique validée : tout skip
+AMP est compté séparément et ne fait avancer ni scheduler, ni step réussi,
+ni validation ou checkpoint périodique. Le batch ignoré n’est pas rejoué et le
+parcours continue avec le groupe suivant. Quatre skips consécutifs sont tolérés ;
+le cinquième arrête le run avec un diagnostic numérique. Ce seuil est une
+politique de sécurité IvoireVoice, pas une règle générale de PyTorch.
+
+Le diagnostic hôte validé a observé une calibration initiale : une tentative
+ignorée à la scale 65536, puis 31 updates réussies et stables à 32768. Le GPU
+prend en charge BF16, mais la précision retenue pour le full training reste FP16
+car cette observation ne démontre aucune instabilité persistante. BF16 n’est
+donc ni activé ni injecté automatiquement.
+
+Les checkpoints récupérables exigent `scaler.pt` en plus du modèle, de
+l’optimiseur, du scheduler et de l’état d’entraînement. Une reprise restaure la
+scale et refuse les compteurs AMP incohérents ; elle ne recrée jamais
+arbitrairement une scale 65536 lorsqu’une scale 32768 a été sauvegardée. Les
+rapports agrégés conservent `precision`, les scales initiale/finale, les nombres
+de tentatives, updates réussies et skips, ainsi que le maximum de skips
+consécutifs observé, sans données individuelles.
 
 ### Invariants complets
 
 - géométrie : 861 optimizer steps/époque en développement, 1 027 en refit ;
 - seed 42, batch CUDA 4, accumulation 4, LR `1e-5`, warmup 5 %, FP16 ;
+- `global_step` désigne exclusivement une update optimizer réellement exécutée ;
+  `optimizer_attempts`, `successful_optimizer_steps`, `amp_skipped_steps` et
+  `consecutive_amp_skips` restent distincts et persistés ;
 - le dernier groupe d’accumulation est divisé par son nombre réel de
   micro-batches ;
 - checkpoint pilote : poids seulement au début de chaque phase ; son

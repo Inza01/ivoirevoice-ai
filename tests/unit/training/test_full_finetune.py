@@ -79,6 +79,12 @@ def test_full_settings_lock_protocol_and_external_outputs(
     assert settings.validation_audio_count == 2_661
     assert settings.refit_audio_count == 16_425
     assert settings.fp16_diagnostic_max_optimizer_attempts == 32
+    assert settings.max_consecutive_amp_skips == 4
+    assert settings.learning_rate == 1e-5
+    assert settings.train_batch_size == 4
+    assert settings.gradient_accumulation_steps == 4
+    assert settings.max_grad_norm == 1.0
+    assert settings.fp16 is True
     assert settings.initial_checkpoint_path.name == "checkpoint-000140"
     assert settings.shareable_output_directory.is_relative_to(tmp_path / "artifacts")
 
@@ -95,6 +101,7 @@ def test_full_settings_lock_protocol_and_external_outputs(
             {"fp16_diagnostic_max_optimizer_attempts": 31},
             "fp16_diagnostic_max_optimizer_attempts",
         ),
+        ({"max_consecutive_amp_skips": 5}, "max_consecutive_amp_skips"),
     ],
 )
 def test_full_settings_reject_protocol_drift(
@@ -352,6 +359,11 @@ def test_development_and_refit_start_from_fresh_optimizer_state() -> None:
 
     for state in (development, refit):
         assert state["global_step"] == 0
+        assert state["successful_optimizer_steps"] == 0
+        assert state["optimizer_attempts"] == 0
+        assert state["amp_skipped_steps"] == 0
+        assert state["consecutive_amp_skips"] == 0
+        assert state["precision"] == "fp16"
         assert state["optimizer_initialized_from"] == "fresh"
         assert state["scheduler_initialized_from"] == "fresh"
         assert state["pilot_optimizer_state_loaded"] is False
@@ -439,6 +451,7 @@ def test_shared_checkpoint_writer_is_atomic_complete_and_bounded(
         tmp_path / "checkpoint-000003/trainer_state.json"
     ).is_file()
     assert (tmp_path / "checkpoint-000003/optimizer.pt").is_file()
+    assert (tmp_path / "checkpoint-000003/scaler.pt").is_file()
 
 
 def test_cuda_has_no_cpu_fallback(monkeypatch: pytest.MonkeyPatch) -> None:

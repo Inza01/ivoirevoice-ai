@@ -42,17 +42,22 @@ from ivoirevoice.training.pilot_finetune import (
 )
 from ivoirevoice.training.pilot_settings import PilotSettings
 from ivoirevoice.training.whisper_finetune import (
+    OptimizerGroupResult,
     accumulation_group_sizes,
+    amp_metrics,
+    apply_optimizer_outcome,
     compute_step_geometry,
     directory_sha256,
     free_disk_gib,
     git_provenance,
     identity_sha256,
+    initialize_or_validate_amp_state,
     latest_complete_checkpoint,
     load_json_object,
     metric_rank,
     refit_step_budget,
     require_matching_identity,
+    restore_runtime_states,
     save_checkpoint_atomic,
     validation_milestones,
     write_json_atomic,
@@ -271,6 +276,7 @@ def _latest_checkpoint(directory: Path) -> Path | None:
             TRAINER_STATE_FILENAME,
             "optimizer.pt",
             "scheduler.pt",
+            "scaler.pt",
             "config.json",
         ),
     )
@@ -325,6 +331,14 @@ def _initial_training_state(
         **run_identity,
         "run_id": identity_sha256(run_identity),
         "global_step": 0,
+        "successful_optimizer_steps": 0,
+        "optimizer_attempts": 0,
+        "amp_skipped_steps": 0,
+        "consecutive_amp_skips": 0,
+        "max_consecutive_amp_skips_observed": 0,
+        "initial_grad_scale": None,
+        "final_grad_scale": None,
+        "precision": "fp16",
         "epoch": 0,
         "groups_completed_in_epoch": 0,
         "total_steps": total_steps,
@@ -416,17 +430,15 @@ def _new_training_runtime(
     )
     scaler = torch.amp.GradScaler("cuda", enabled=settings.fp16)
     if latest is not None:
-        optimizer.load_state_dict(
-            torch.load(latest / "optimizer.pt", map_location=device, weights_only=True)
+        restore_runtime_states(
+            checkpoint=latest,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            scaler=scaler,
+            torch=torch,
+            device=device,
         )
-        scheduler.load_state_dict(
-            torch.load(latest / "scheduler.pt", map_location=device, weights_only=True)
-        )
-        scaler_path = latest / "scaler.pt"
-        if scaler_path.is_file():
-            scaler.load_state_dict(
-                torch.load(scaler_path, map_location=device, weights_only=True)
-            )
+    initialize_or_validate_amp_state(state, scaler, resumed=latest is not None)
     return model, processor, collator, optimizer, scheduler, scaler, state
 
 
@@ -451,7 +463,7 @@ def _optimizer_group(
     device: Any,
     torch: Any,
     max_grad_norm: float,
-) -> float:
+) -> OptimizerGroupResult:
     optimizer.zero_grad(set_to_none=True)
     divisor = len(row_batches)
     losses: list[float] = []
@@ -475,9 +487,19 @@ def _optimizer_group(
     scale_before = float(scaler.get_scale())
     scaler.step(optimizer)
     scaler.update()
-    if float(scaler.get_scale()) < scale_before:
-        raise ConfigError("Un optimizer step FP16 a été ignoré : run complet arrêté.")
-    return sum(losses) / len(losses)
+    scale_after = float(scaler.get_scale())
+    amp_skipped = scale_after < scale_before
+    if not amp_skipped and not all(
+        bool(torch.isfinite(parameter.detach()).all()) for parameter in model.parameters()
+    ):
+        raise ConfigError("Paramètres modèle NaN/Inf après optimizer step : arrêt immédiat.")
+    return OptimizerGroupResult(
+        train_loss=sum(losses) / len(losses),
+        scale_before=scale_before,
+        scale_after=scale_after,
+        optimizer_step_executed=not amp_skipped,
+        amp_skipped=amp_skipped,
+    )
 
 
 def _write_private_evaluation(
@@ -638,7 +660,7 @@ def run_development(settings: FullTrainingSettings) -> dict[str, Any]:
             if group_index < completed_groups:
                 continue
             model.train()
-            train_loss = _optimizer_group(
+            optimizer_result = _optimizer_group(
                 row_batches=group,
                 collator=collator,
                 model=model,
@@ -648,23 +670,38 @@ def run_development(settings: FullTrainingSettings) -> dict[str, Any]:
                 torch=torch,
                 max_grad_norm=settings.max_grad_norm,
             )
-            scheduler.step()
-            state["global_step"] = int(state["global_step"]) + 1
-            step = int(state["global_step"])
             state["epoch"] = epoch
             state["groups_completed_in_epoch"] = group_index + 1
+            optimizer_updated = apply_optimizer_outcome(
+                state=state,
+                result=optimizer_result,
+                scheduler=scheduler,
+                max_consecutive_amp_skips=settings.max_consecutive_amp_skips,
+                stage="development",
+            )
+            step = int(state["global_step"])
             log_row: dict[str, Any] = {
                 "step": step,
+                "optimizer_attempt": int(state["optimizer_attempts"]),
+                "successful_optimizer_steps": int(
+                    state["successful_optimizer_steps"]
+                ),
+                "optimizer_step_executed": optimizer_updated,
+                "amp_skipped": optimizer_result.amp_skipped,
+                "scale_before": optimizer_result.scale_before,
+                "scale_after": optimizer_result.scale_after,
                 "epoch": epoch + (group_index + 1) / len(groups),
-                "train_loss": train_loss,
+                "train_loss": optimizer_result.train_loss,
                 "learning_rate": float(scheduler.get_last_lr()[0]),
                 "validation": None,
             }
             cast(list[dict[str, Any]], state["log_history"]).append(log_row)
+            if not optimizer_updated:
+                continue
             if step == 1 or step % settings.logging_steps == 0:
                 print(
                     f"development step={step:04d}/{total_steps} "
-                    f"loss={train_loss:.6f}"
+                    f"loss={optimizer_result.train_loss:.6f}"
                 )
             if step not in milestones:
                 continue
@@ -737,7 +774,25 @@ def run_development(settings: FullTrainingSettings) -> dict[str, Any]:
         float(state.get("max_gpu_memory_mib", 0.0)),
         float(torch.cuda.max_memory_allocated(device)) / 1024**2,
     )
-    _persist_latest_state(settings.development_checkpoint_directory, state)
+    latest = _latest_checkpoint(settings.development_checkpoint_directory)
+    if latest is None or int(latest.name.removeprefix("checkpoint-")) != int(
+        state["global_step"]
+    ):
+        _save_checkpoint(
+            directory=settings.development_checkpoint_directory,
+            minimum_free_disk_gib=settings.minimum_free_disk_gib,
+            save_total_limit=settings.save_total_limit,
+            best_checkpoint_name=cast(str | None, state.get("best_checkpoint_name")),
+            model=model,
+            processor=processor,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            scaler=scaler,
+            state=state,
+            torch=torch,
+        )
+    else:
+        _persist_latest_state(settings.development_checkpoint_directory, state)
     best_step = int(state["best_step"])
     refit_geometry = compute_step_geometry(
         len(context.selection.refit_rows),
@@ -774,6 +829,7 @@ def run_development(settings: FullTrainingSettings) -> dict[str, Any]:
         "refit_step_budget": refit_steps,
         "initial_validation_metrics": initial_metrics,
         "best_validation_metrics": state["best_metrics"],
+        **amp_metrics(state),
         "historical_test_used": False,
         "final_holdout_used": False,
     }
@@ -869,7 +925,7 @@ def run_refit(settings: FullTrainingSettings) -> dict[str, Any]:
             if int(state["global_step"]) >= total_steps:
                 break
             model.train()
-            train_loss = _optimizer_group(
+            optimizer_result = _optimizer_group(
                 row_batches=group,
                 collator=collator,
                 model=model,
@@ -879,21 +935,39 @@ def run_refit(settings: FullTrainingSettings) -> dict[str, Any]:
                 torch=torch,
                 max_grad_norm=settings.max_grad_norm,
             )
-            scheduler.step()
-            state["global_step"] = int(state["global_step"]) + 1
-            step = int(state["global_step"])
             state["epoch"] = epoch
             state["groups_completed_in_epoch"] = group_index + 1
+            optimizer_updated = apply_optimizer_outcome(
+                state=state,
+                result=optimizer_result,
+                scheduler=scheduler,
+                max_consecutive_amp_skips=settings.max_consecutive_amp_skips,
+                stage="refit",
+            )
+            step = int(state["global_step"])
             cast(list[dict[str, Any]], state["log_history"]).append(
                 {
                     "step": step,
+                    "optimizer_attempt": int(state["optimizer_attempts"]),
+                    "successful_optimizer_steps": int(
+                        state["successful_optimizer_steps"]
+                    ),
+                    "optimizer_step_executed": optimizer_updated,
+                    "amp_skipped": optimizer_result.amp_skipped,
+                    "scale_before": optimizer_result.scale_before,
+                    "scale_after": optimizer_result.scale_after,
                     "epoch": epoch + (group_index + 1) / len(groups),
-                    "train_loss": train_loss,
+                    "train_loss": optimizer_result.train_loss,
                     "learning_rate": float(scheduler.get_last_lr()[0]),
                 }
             )
+            if not optimizer_updated:
+                continue
             if step == 1 or step % settings.logging_steps == 0:
-                print(f"refit step={step:04d}/{total_steps} loss={train_loss:.6f}")
+                print(
+                    f"refit step={step:04d}/{total_steps} "
+                    f"loss={optimizer_result.train_loss:.6f}"
+                )
             if step % settings.refit_save_steps == 0 or step == total_steps:
                 state["training_duration_seconds"] = duration_before_resume + (
                     perf_counter() - started
@@ -958,6 +1032,7 @@ def run_refit(settings: FullTrainingSettings) -> dict[str, Any]:
         ),
         "optimizer_steps": int(state["global_step"]),
         "learning_rate": settings.learning_rate,
+        **amp_metrics(state),
         "final_checkpoint_name": final_checkpoint.name,
         "final_checkpoint_sha256": directory_sha256(final_checkpoint),
         "training_duration_seconds": state["training_duration_seconds"],
@@ -978,6 +1053,18 @@ def run_refit(settings: FullTrainingSettings) -> dict[str, Any]:
             "train_audio_count": final_manifest["train_audio_count"],
             "train_speaker_count": final_manifest["train_speaker_count"],
             "optimizer_steps": final_manifest["optimizer_steps"],
+            "precision": final_manifest["precision"],
+            "initial_grad_scale": final_manifest["initial_grad_scale"],
+            "final_grad_scale": final_manifest["final_grad_scale"],
+            "amp_skipped_steps": final_manifest["amp_skipped_steps"],
+            "successful_optimizer_steps": final_manifest[
+                "successful_optimizer_steps"
+            ],
+            "optimizer_attempts": final_manifest["optimizer_attempts"],
+            "consecutive_amp_skips": final_manifest["consecutive_amp_skips"],
+            "max_consecutive_amp_skips_observed": final_manifest[
+                "max_consecutive_amp_skips_observed"
+            ],
             "training_duration_seconds": final_manifest["training_duration_seconds"],
             "max_gpu_memory_mib": final_manifest["max_gpu_memory_mib"],
             "test_used": False,

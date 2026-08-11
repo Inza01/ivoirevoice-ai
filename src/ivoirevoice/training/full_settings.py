@@ -61,6 +61,7 @@ class FullTrainingSettings:
     refit_save_steps: int
     refit_save_total_limit: int
     fp16_diagnostic_max_optimizer_attempts: int
+    max_consecutive_amp_skips: int
     max_audio_seconds: float
     minimum_free_disk_gib: float
     final_holdout_confirmation: str
@@ -204,6 +205,7 @@ def load_full_training_settings(path: str | Path) -> FullTrainingSettings:
         "refit_save_steps": 250,
         "refit_save_total_limit": 2,
         "fp16_diagnostic_max_optimizer_attempts": 32,
+        "max_consecutive_amp_skips": 4,
         "max_audio_seconds": 30.0,
         "minimum_free_disk_gib": 15.0,
         "final_holdout_confirmation": "EVALUATE_FROZEN_MODEL_ONCE",
@@ -295,6 +297,9 @@ def load_full_training_settings(path: str | Path) -> FullTrainingSettings:
         ),
         fp16_diagnostic_max_optimizer_attempts=_positive_int(
             experiment, "fp16_diagnostic_max_optimizer_attempts"
+        ),
+        max_consecutive_amp_skips=_positive_int(
+            experiment, "max_consecutive_amp_skips"
         ),
         max_audio_seconds=_number(experiment, "max_audio_seconds"),
         minimum_free_disk_gib=_number(experiment, "minimum_free_disk_gib"),
