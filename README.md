@@ -328,6 +328,19 @@ make ui \
 
 Open `http://127.0.0.1:7860`. Public Gradio sharing is disabled.
 
+For a corpus-free demonstration on a clean `main`, use the guarded entry point:
+
+```bash
+export IVOIREVOICE_DIOULA_FINAL_MODEL_PATH="/path/to/checkpoint-002052"
+export IVOIREVOICE_MODEL_CACHE_DIR="/path/to/cache/models"
+make demo-preflight
+make demo
+```
+
+Demo mode never exposes the corpus or private-artifact roots to Gradio. It
+accepts only a new recording or an explicitly confirmed external demo audio;
+see [`docs/demo_guide.md`](docs/demo_guide.md).
+
 The dashboard provides:
 
 1. transcription and sequential model comparison;

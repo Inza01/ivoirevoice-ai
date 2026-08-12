@@ -48,6 +48,9 @@ quality_gates:
 runtime_entrypoints:
   api: make api
   ui: make ui
+  demo_preflight: make demo-preflight
+  demo_smoke: make demo-smoke
+  demo: make demo
   smoke_training: make smoke-overfit-dy
   pilot_training: make pilot-finetune-dy
   full_training_preflight: make full-finetune-preflight
