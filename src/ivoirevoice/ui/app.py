@@ -412,7 +412,8 @@ def create_interface(services: DemoServices | None = None) -> Any:
             gr.Markdown(
                 "## Expérience A — validation pilote\n\n"
                 "Tiny baseline et Tiny adapté sont comparés sur les **mêmes 600 audios "
-                "de validation** et les mêmes références."
+                "de validation** et les mêmes références. Ce benchmark historique "
+                "porte sur le checkpoint pilote, pas sur le modèle final de l'onglet 1."
             )
             gr.HTML(pilot_context)
             gr.Dataframe(
