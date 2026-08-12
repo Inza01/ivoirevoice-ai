@@ -141,6 +141,11 @@ def _require_training_still_allowed(settings: FullTrainingSettings) -> None:
         raise ConfigError(
             "Un événement final_holdout a déjà commencé : tout réentraînement est interdit."
         )
+    one_time_state = settings.artifact_output_directory / "final_holdout" / "state.json"
+    if one_time_state.is_file():
+        raise ConfigError(
+            "Le protocole one-time final_holdout est scellé : tout réentraînement est interdit."
+        )
 
 
 def _load_context(
@@ -1162,7 +1167,13 @@ def _evaluate_model(
 
 
 def run_final_evaluation(settings: FullTrainingSettings) -> dict[str, Any]:
-    """Evaluate one frozen model event on final_holdout and seal the receipt."""
+    """Reject the historical three-model final-holdout route before data access."""
+
+    raise ConfigError(
+        "Le stage final-evaluation historique à trois modèles est désactivé. "
+        "Utilisez make final-holdout-preflight puis, après autorisation, "
+        "make evaluate-final-holdout-refit-once."
+    )
 
     if (
         os.getenv("IVOIREVOICE_CONFIRM_FINAL_HOLDOUT")

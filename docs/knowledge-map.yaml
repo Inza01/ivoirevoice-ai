@@ -55,4 +55,6 @@ runtime_entrypoints:
   full_training_development_final_validation: make full-finetune-development-final-validation
   full_training_development_finalize_selection: make full-finetune-development-finalize-selection
   full_training_refit: make full-finetune-refit
-  final_holdout_evaluation: make evaluate-final-holdout-dy
+  final_holdout_preflight: make final-holdout-preflight
+  final_holdout_evaluation: make evaluate-final-holdout-refit-once
+  final_holdout_legacy_disabled: make evaluate-final-holdout-dy

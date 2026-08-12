@@ -216,11 +216,17 @@ Aucune commande n’enchaîne automatiquement l’étape suivante.
 5. `make full-finetune-refit` repart à nouveau des poids pilotes avec des états
    d’optimisation neufs, puis utilise exactement les 16 425 audios
    train+validation. Aucune validation n’est décodée pendant le refit.
-6. L’unique évaluation finale exige explicitement :
+6. Le préflight final-only ne lit aucune ligne du holdout :
 
    ```bash
-   make evaluate-final-holdout-dy \
-     CONFIRM_FINAL_HOLDOUT=EVALUATE_FROZEN_MODEL_ONCE
+   make final-holdout-preflight
+   ```
+
+   L’unique évaluation réelle reste une commande séparée, qui exige :
+
+   ```bash
+   make evaluate-final-holdout-refit-once \
+     CONFIRM_FINAL_HOLDOUT=EVALUATE_FROZEN_REFIT_ONCE
    ```
 
 Toutes les commandes exigent les mêmes variables locales que la Phase 4C :
@@ -314,6 +320,59 @@ de `checkpoint-000140` sur les 16 425 audios et 18 locuteurs train+validation,
 avec optimizer, scheduler et GradScaler neufs, FP16, learning rate `1e-5`,
 batch par device 4, accumulation 4 et batch effectif 16.
 
+### One-time frozen refit holdout evaluation
+
+Le protocole final autorise exclusivement le modèle refit gelé désigné par
+`final_model_manifest.json`. Le reçu versionné
+`configs/experiments/final_holdout_refit_approval.json` ancre le run refit,
+le commit d'entraînement, la configuration, le checkpoint final, son hash et
+les 2 052 updates réussies. Il ne contient aucune métrique du holdout.
+
+`make final-holdout-preflight` vérifie ces métadonnées, le scellé du modèle,
+le dépôt propre, CUDA, l'espace disque et l'absence de toute évaluation
+antérieure. Il peut hacher le checkpoint, mais ne construit ni dataset, ni
+sélection, ni collator et ne lit aucune référence du holdout. Il initialise
+un état `SEALED` avec `evaluation_count=0` sous la racine externe des
+artefacts.
+
+Après une autorisation humaine distincte, la seule voie d'ouverture est :
+
+```bash
+make evaluate-final-holdout-refit-once \
+  IVOIREVOICE_DIOULA_PILOT_MODEL_PATH="/chemin/vers/checkpoint-000140" \
+  IVOIREVOICE_DIOULA_DATA_DIR="/chemin/vers/voices_data" \
+  CONFIRM_FINAL_HOLDOUT="EVALUATE_FROZEN_REFIT_ONCE"
+```
+
+Le modèle et le processor finaux sont préparés avant l'accès. Juste avant la
+construction de la sélection scellée, l'état passe atomiquement à
+`EVALUATION_IN_PROGRESS`, `evaluation_count=1` et `accessed=true`. Un succès
+produit `EVALUATED`. Toute erreur ou interruption après cette frontière
+produit `EVALUATION_FAILED_AFTER_ACCESS`; aucun de ces trois états ne peut
+être relancé automatiquement. Une erreur avant la frontière conserve
+`SEALED` et ne consomme pas l'ouverture.
+
+Un seul modèle est chargé : le checkpoint final refit. Tiny baseline,
+checkpoint pilote, checkpoints development et Whisper Small sont interdits.
+Les références et hypothèses ne vivent que le temps de mettre à jour des
+compteurs en mémoire. Aucun cache, CSV, JSONL, prédiction, transcription,
+speaker ID ou identifiant d'utterance individuel n'est persisté. Le rapport
+`final_holdout/final_metrics.json`, hors Git et privé par défaut, contient
+uniquement les agrégats : nombre d'audios et de locuteurs, WER, CER, RTF,
+loss finale, erreurs d'édition, dénominateurs, durées, latence et provenance
+matérielle/logicielle. La référence historique de trois locuteurs n'est pas une
+contrainte d'acceptation : la valeur observée est enregistrée telle quelle et
+un indicateur d'anomalie explicite est ajouté si elle diffère.
+
+La cible historique `make evaluate-final-holdout-dy` est conservée comme
+entrée explicitement désactivée et échoue avant tout contexte de données. Son
+ancien protocole à trois modèles et ses caches individuels ne sont plus valides
+pour l'évaluation finale gelée.
+
+Après l'ouverture, le résultat est accepté tel quel. Il est interdit de
+réentraîner, modifier le décodage ou la normalisation, changer les
+hyperparamètres, sélectionner un autre checkpoint ou réévaluer le holdout.
+
 ### Diagnostic FP16 train-only
 
 Le rapport unique est écrit hors Git sous
@@ -388,10 +447,10 @@ consécutifs observé, sans données individuelles.
   aussi hors Git jusqu’à une revue humaine ;
 - les 150 audios du pilote historique ne sont jamais mélangés au
   `final_holdout` de 2 624 audios ;
-- l’évaluation finale compare Tiny original, le pilote et le refit sur la même
-  sélection, séquentiellement et depuis le cache local ;
-- dès que le reçu final est créé, tout nouveau développement ou refit est
-  refusé, y compris après un résultat négatif ;
+- l’évaluation finale charge uniquement le refit gelé et ne persiste que des
+  agrégats ; aucune baseline n'ouvre le holdout ;
+- dès que le protocole one-time est scellé, tout nouveau développement ou
+  refit est refusé, y compris après un résultat négatif ou un échec post-accès ;
 - licence inconnue : corpus, modèle, checkpoints et prédictions restent
   `local_research_only`.
 

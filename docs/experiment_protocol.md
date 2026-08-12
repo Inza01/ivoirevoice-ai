@@ -97,3 +97,22 @@ Le checkpoint `checkpoint-000140` reste hors Git. L'interface le résout via
 `IVOIREVOICE_DIOULA_PILOT_MODEL_PATH`, le charge séquentiellement et ne
 remplace jamais les deux baselines. Le modèle reste un pilote : le
 `final_holdout` n'a pas été évalué.
+
+## Évaluation finale one-time du refit gelé
+
+L'évaluation finale n'est ni un benchmark multi-modèle ni une nouvelle phase
+de sélection. Seul le checkpoint refit final, déjà gelé avant toute ouverture,
+peut traiter les 2 624 éléments restants du test. La baseline, le pilote et les
+checkpoints development n'accèdent pas à ce jeu.
+
+Un préflight sans lecture des références verrouille les empreintes et crée
+l'état `SEALED`. L'ouverture confirmée consomme immédiatement l'unique compteur
+et passe à `EVALUATION_IN_PROGRESS`; un succès devient `EVALUATED`, tandis
+qu'un échec après accès devient définitivement
+`EVALUATION_FAILED_AFTER_ACCESS`. Aucun retry automatique n'est permis.
+
+Le calcul conserve seulement des compteurs cumulés. Le résultat final contient
+WER, CER, RTF, loss, erreurs d'édition, dénominateurs, nombres d'audios et de
+locuteurs et provenance du runtime. Aucune référence, prédiction, identité ou
+chemin individuel n'est écrit. Les métriques ne peuvent déclencher aucun
+réentraînement, réglage ou second passage.

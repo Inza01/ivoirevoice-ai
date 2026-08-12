@@ -177,6 +177,31 @@ l'interface loopback et le partage public Gradio est explicitement désactivé.
 
 Le stockage des données, checkpoints et sorties reste hors Git.
 
+## Évaluation finale one-time
+
+La voie finale est isolée du comparateur historique :
+
+```text
+final_model_manifest + approval receipt + clean Git
+                         |
+              metadata-only preflight
+                         |
+                       SEALED
+                         |
+        exact confirmation + final refit model only
+                         |
+             EVALUATION_IN_PROGRESS
+                         |
+       streaming counters, no per-item persistence
+                    /           \
+             EVALUATED    FAILED_AFTER_ACCESS
+```
+
+`one_time_final_holdout.py` est le seul entry point officiel. Il prépare le
+modèle avant la frontière d'accès, puis agrège directement les erreurs, durées,
+losses et locuteurs en mémoire. Les états post-accès sont terminaux. La voie
+historique à trois modèles reste bloquée avant le chargement du contexte.
+
 ## Dépendances autorisées
 
 Les dépendances inter-domaines existantes sont des invariants vérifiés par
