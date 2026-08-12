@@ -19,7 +19,7 @@ FastAPI                    Gradio
                               |
                          ASRBackend
                               |
-              Whisper Tiny / Small / Tiny adapté pilote
+              Whisper Tiny / Small / Tiny Dioula Final
 ```
 
 La configuration principale vient de `configs/project.yaml`. Les variables
@@ -155,10 +155,12 @@ EvaluationService ---- normalisation, WER, CER et différences
 ExportService ---- JSON, CSV, TXT et aperçus temporaires anonymisés
 ```
 
-`configs/ui/models.yaml` contient les deux baselines et l'entrée Tiny adaptée
-pilote. Le checkpoint reste hors Git ; son emplacement est résolu uniquement
-depuis `IVOIREVOICE_DIOULA_PILOT_MODEL_PATH`. Si cette variable manque, l'échec
-du pilote reste isolé et les deux baselines demeurent utilisables.
+`configs/ui/models.yaml` contient les deux baselines et l'entrée Tiny Dioula
+Final. Le checkpoint final reste hors Git ; son emplacement est résolu
+uniquement depuis `IVOIREVOICE_DIOULA_FINAL_MODEL_PATH`, et le dossier doit
+s'appeler `checkpoint-002052`. Si la variable manque ou si le checkpoint est
+incomplet, son échec reste isolé et les deux baselines demeurent utilisables.
+La variable pilote reste réservée aux workflows historiques d'entraînement.
 
 Le benchmark lit exclusivement les rapports JSON agrégés et sépare la
 validation pilote de 600 audios du pilote historique de 150 audios. L'analyse
@@ -176,3 +178,54 @@ l'interface loopback et le partage public Gradio est explicitement désactivé.
 - `api/` et `ui/` : adaptateurs d'entrée, sans logique ML spécifique.
 
 Le stockage des données, checkpoints et sorties reste hors Git.
+
+## Évaluation finale one-time
+
+La voie finale est isolée du comparateur historique :
+
+```text
+final_model_manifest + approval receipt + clean Git
+                         |
+              metadata-only preflight
+                         |
+                       SEALED
+                         |
+        exact confirmation + final refit model only
+                         |
+             EVALUATION_IN_PROGRESS
+                         |
+       streaming counters, no per-item persistence
+                    /           \
+             EVALUATED    FAILED_AFTER_ACCESS
+```
+
+`one_time_final_holdout.py` est le seul entry point officiel. Il prépare le
+modèle avant la frontière d'accès, puis agrège directement les erreurs, durées,
+losses et locuteurs en mémoire. Les états post-accès sont terminaux. La voie
+historique à trois modèles reste bloquée avant le chargement du contexte.
+
+L'événement officiel s'est terminé dans l'état `EVALUATED` avec
+`evaluation_count=1`. Aucun composant UI ne peut réouvrir ce holdout :
+l'application charge seulement le checkpoint déjà gelé pour des audios fournis
+explicitement par l'utilisateur.
+
+## Dépendances autorisées
+
+Les dépendances inter-domaines existantes sont des invariants vérifiés par
+`scripts/check_harness.py` :
+
+```text
+api        -> config, exceptions, models, services
+data       -> exceptions
+models     -> exceptions
+evaluation -> data, exceptions, models
+training   -> data, evaluation, exceptions, models
+services   -> data, evaluation, exceptions, models
+ui         -> exceptions, services
+```
+
+Les imports internes à un domaine restent libres. Une nouvelle direction
+nécessite une décision dans un plan d'exécution, une mise à jour de cette
+architecture et du validateur dans le même changement. Les imports absolus et
+relatifs sont contrôlés afin qu'un changement de syntaxe ne contourne pas la
+frontière.

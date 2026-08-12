@@ -2,24 +2,24 @@
 
 ## Préparation hors caméra
 
-Configurer les quatre emplacements locaux sans les inscrire dans Git :
+Configurer les emplacements locaux sans les inscrire dans Git :
 
 ```bash
 make ui \
   DIOULA_DATA_DIR="/path/to/voices_data" \
   ARTIFACTS_DIR="/path/to/artifacts" \
   MODEL_CACHE_DIR="/path/to/cache/models" \
-  DIOULA_PILOT_MODEL_PATH="/path/to/checkpoint-000140"
+  DIOULA_FINAL_MODEL_PATH="/path/to/checkpoint-002052"
 ```
 
 Puis :
 
 1. ouvrir `http://127.0.0.1:7860` ;
-2. vérifier la présence de Tiny baseline, Small baseline et Tiny Dioula adapté
-   pilote ;
+2. vérifier les libellés exacts **Whisper Tiny — Baseline**,
+   **Whisper Small — Baseline** et **Whisper Tiny — Dioula Final** ;
 3. choisir un audio dioula court autorisé pour la démonstration et préparer sa
    référence ;
-4. effectuer une répétition Tiny baseline contre Tiny adapté ;
+4. effectuer une répétition Tiny baseline contre Tiny Dioula Final ;
 5. vérifier que le benchmark distingue explicitement les Expériences A et B ;
 6. fermer tout écran qui montre un chemin local ou un nom réel.
 
@@ -31,11 +31,11 @@ L'interface doit rester locale : ne jamais activer le partage public Gradio.
 |---:|---|---|
 | 0:00–0:20 | Présenter l'accueil | « IvoireVoice AI traite un problème d'ASR à faibles ressources : transcrire le dioula avec des données locales strictement séparées par locuteur. » |
 | 0:20–0:55 | Importer l'audio et sa référence | « Cet audio ne quitte pas la machine. La référence rend possibles le WER et le CER pour cette démonstration ; sans elle, ces métriques restent indisponibles. » |
-| 0:55–1:30 | Sélectionner Tiny baseline et Tiny adapté, puis lancer | « Les modèles sont chargés séquentiellement et libérés après chaque exécution. Le checkpoint adapté est un pilote entraîné sur 2 250 audios et validé sur 600 audios. » |
+| 0:55–1:30 | Sélectionner Tiny baseline et Tiny Dioula Final, puis lancer | « Les modèles sont chargés séquentiellement et libérés après chaque exécution. Le modèle final a été refit sur 16 425 audios ; ses poids restent locaux. » |
 | 1:30–1:55 | Montrer les deux cartes | « Nous comparons la transcription, le temps, le RTF, le WER et le CER. Une valeur WER, CER ou RTF plus faible est meilleure. » |
-| 1:55–2:30 | Ouvrir Benchmark, Expérience A | « Sur les mêmes 600 audios de validation, l'adaptation réduit le WER de 32,25 % et le CER de 51,44 % relativement à Tiny baseline. Il s'agit de validation pilote, pas du holdout final. » |
-| 2:30–2:45 | Montrer l'Expérience B | « Le pilote historique compare Tiny et Small baseline sur 150 autres audios. Ces résultats ne sont pas mélangés avec l'Expérience A. » |
-| 2:45–3:00 | Conclure sur les limites | « Le modèle reste un pilote, le final_holdout n'a pas été évalué et le baoulé est une perspective. Aucun résultat final n'est revendiqué. » |
+| 1:55–2:20 | Ouvrir À propos et montrer le résultat final | « Sur l'unique évaluation du holdout indépendant de 2 624 audios, le modèle gelé obtient 33,26 % de WER, 12,38 % de CER et un RTF de 0,00785. » |
+| 2:20–2:45 | Ouvrir Benchmark | « Les 600 audios de validation pilote et les 150 audios du pilote historique forment deux expériences anciennes distinctes. Ils ne sont ni fusionnés ni comparés directement au holdout final. » |
+| 2:45–3:00 | Conclure sur les limites | « Ce modèle final reste expérimental : seulement trois groupes de locuteurs composent le holdout, et les accents, le bruit, les microphones ou le domaine peuvent changer la qualité. Le baoulé reste une perspective. » |
 
 ## Résultats à annoncer exactement
 
@@ -73,23 +73,28 @@ Si l'inférence en direct échoue :
 5. ne jamais inventer ou recalculer une métrique pendant la présentation.
 
 Ce mode démontre l'écart baseline/adapté avec les mêmes résultats persistés,
-mais ne prétend pas être une nouvelle inférence.
+mais ne prétend pas être une nouvelle inférence du modèle final. Le résultat
+final agrégé reste disponible dans l'onglet **À propos** ; le holdout n'est
+jamais rouvert pour la démonstration.
 
 ## Réponses courtes
 
 **Le modèle adapté est-il final ?**
 
-Non. Il s'agit du checkpoint pilote `checkpoint-000140`.
+Oui, l'interface charge le refit gelé `checkpoint-002052`. « Final » signifie
+ici fin du protocole expérimental, pas qualité industrielle ni autorisation de
+publication des poids.
 
-**Pourquoi le RTF adapté est-il un peu supérieur ?**
+**Le RTF de l'audio importé sera-t-il exactement 0,00785 ?**
 
-La qualité pilote s'améliore ici au prix d'un temps d'inférence légèrement
-supérieur. Les mesures dépendent aussi du matériel et du protocole.
+Non. `0,00785` est l'agrégat du final holdout sur le matériel du run officiel.
+Le temps d'un autre audio dépend du matériel, de sa durée et du protocole.
 
 **Pourquoi ne pas annoncer une performance de généralisation ?**
 
-Les chiffres viennent de la validation pilote. Le `final_holdout` n'a pas été
-évalué et reste réservé à une décision ultérieure explicite.
+Le holdout de 2 624 audios est resté indépendant jusqu'à l'unique évaluation
+du modèle gelé. Il ne contient que trois groupes de locuteurs et ne garantit
+pas une performance identique en production ou sur un autre corpus.
 
 **Les données ou le checkpoint sont-ils publiés ?**
 

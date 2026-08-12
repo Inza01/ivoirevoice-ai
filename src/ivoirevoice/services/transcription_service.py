@@ -18,7 +18,7 @@ from ivoirevoice.models.base import TranscriptionResult
 from ivoirevoice.models.registry import BackendFactory, ModelRegistry
 from ivoirevoice.models.whisper import WhisperBackend, load_whisper_settings
 
-MODEL_STATUS = {"baseline", "adapted", "pilot_adapted"}
+MODEL_STATUS = {"baseline", "adapted", "pilot_adapted", "final_adapted"}
 MODEL_BACKENDS = {"whisper"}
 
 
@@ -299,12 +299,17 @@ def _backend_factory(definition: ModelDefinition) -> WhisperBackend:
     if settings.model_revision != definition.revision:
         raise ConfigError("La révision du catalogue ne correspond pas à sa configuration.")
     if definition.model_path is not None:
+        if (
+            definition.checkpoint_name is not None
+            and definition.model_path.name != definition.checkpoint_name
+        ):
+            raise ConfigError("Le chemin du checkpoint ne correspond pas au modèle déclaré.")
         required_files = ("config.json", "model.safetensors", "preprocessor_config.json")
         if not definition.model_path.is_dir() or any(
             not (definition.model_path / filename).is_file()
             for filename in required_files
         ):
-            raise ConfigError("Le checkpoint pilote configuré est absent ou incomplet.")
+            raise ConfigError("Le checkpoint adapté configuré est absent ou incomplet.")
         settings = replace(
             settings,
             backend_name=definition.key,
@@ -318,6 +323,10 @@ def _backend_factory(definition: ModelDefinition) -> WhisperBackend:
     elif definition.status == "pilot_adapted":
         raise ConfigError(
             "IVOIREVOICE_DIOULA_PILOT_MODEL_PATH est requis pour le modèle pilote."
+        )
+    elif definition.status == "final_adapted":
+        raise ConfigError(
+            "IVOIREVOICE_DIOULA_FINAL_MODEL_PATH est requis pour le modèle Dioula final."
         )
     return WhisperBackend(settings)
 

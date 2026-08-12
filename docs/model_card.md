@@ -67,14 +67,55 @@ large. Ils ne constituent pas une performance finale et ne doivent pas être
 comparés directement au pilote test de 150 audios, dont la composition est
 différente.
 
+## Full development et refit final
+
+Le développement complet a utilisé les 13 764 audios train et les 2 661
+audios validation avec des locuteurs disjoints. Sur les mêmes 2 661 audios de
+validation, le checkpoint pilote obtient `WER=0,774152` et `CER=0,361319`, puis
+`checkpoint-001720` obtient `WER=0,441286` et `CER=0,183654`.
+
+Cette sélection a fixé un budget de 2 052 updates. Le refit final est reparti
+des poids de `checkpoint-000140`, avec optimizer, scheduler et GradScaler
+neufs, sur les 16 425 audios train+validation et 18 locuteurs. Le modèle gelé
+est `checkpoint-002052`. `checkpoint-001720` n'a servi qu'à déterminer le
+budget et n'est pas le modèle final.
+
+## Évaluation finale indépendante
+
+Le modèle final a ouvert une seule fois le final holdout de 2 624 audios et 3
+locuteurs. Ce jeu n'a servi ni à l'entraînement, ni à la validation, ni à la
+sélection ou au réglage des hyperparamètres.
+
+| Métrique final holdout | Valeur |
+|---|---:|
+| WER | 0,332625 |
+| CER | 0,123804 |
+| RTF | 0,007853 |
+| Loss finale | 0,346437 |
+| Substitutions | 5 690 |
+| Insertions | 1 363 |
+| Suppressions | 1 864 |
+| Correspondances exactes | 334 |
+
+Ces valeurs sont des agrégats de l'unique évaluation. Aucune prédiction,
+transcription, identité de locuteur ou référence individuelle n'est publiée.
+Elles ne doivent pas être comparées directement aux résultats pilote ou
+validation, car les jeux diffèrent. Le modèle et le protocole sont restés
+inchangés après lecture du holdout.
+
 ## Limites et usage
 
 - les transcriptions, prédictions et checkpoints restent locaux ;
 - la licence et le consentement de redistribution du corpus ne sont pas
   confirmés ; ni le dataset ni le modèle dérivé ne sont publiés ;
-- le test final de 2 624 audios reste totalement non évalué ;
-- le pilote adapté n'a vu qu'un sous-ensemble du train pendant une époque ;
+- le modèle est spécialisé au dioula et au contexte local disponible ;
+- les performances peuvent varier selon l'accent, le bruit, le microphone et
+  le domaine ;
+- le corpus disponible limite la couverture acoustique et linguistique ;
+- le final holdout contient seulement 3 groupes de locuteurs ;
+- aucune métrique ne garantit une performance identique en production ;
 - aucune évaluation française n'a été réalisée ;
 - l'API n'utilise pas encore le backend réel ;
 - Gradio utilise le backend réel, mais reste un démonstrateur local sans
-  authentification ni exposition publique.
+  authentification ni exposition publique ;
+- le baoulé et les autres langues ivoiriennes restent des travaux futurs.

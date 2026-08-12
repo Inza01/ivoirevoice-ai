@@ -1,0 +1,60 @@
+version: 1
+
+entrypoints:
+  agent: AGENTS.md
+  documentation: docs/index.md
+  product: docs/product-specs/mvp.md
+  architecture: docs/architecture.md
+  security: docs/SECURITY.md
+  reliability: docs/RELIABILITY.md
+  quality: docs/QUALITY.md
+  technical_debt: docs/technical-debt.md
+
+domains:
+  data:
+    source: src/ivoirevoice/data
+    tests: tests/unit/data
+    docs: docs/data_card.md
+  models:
+    source: src/ivoirevoice/models
+    tests: tests/unit/test_whisper_backend.py
+    docs: docs/model_card.md
+  evaluation:
+    source: src/ivoirevoice/evaluation
+    tests: tests/unit/evaluation
+    docs: docs/experiment_protocol.md
+  training:
+    source: src/ivoirevoice/training
+    tests: tests/unit/training
+    docs: docs/training_protocol.md
+  services:
+    source: src/ivoirevoice/services
+    tests: tests/unit/services
+    docs: docs/architecture.md
+  api:
+    source: src/ivoirevoice/api
+    tests: tests/integration/test_health_endpoint.py
+    docs: docs/product-specs/mvp.md
+  ui:
+    source: src/ivoirevoice/ui
+    tests: tests/unit/ui
+    docs: docs/demo_guide.md
+
+quality_gates:
+  fast: make verify-fast
+  harness: make harness-check
+  full: make verify
+
+runtime_entrypoints:
+  api: make api
+  ui: make ui
+  smoke_training: make smoke-overfit-dy
+  pilot_training: make pilot-finetune-dy
+  full_training_preflight: make full-finetune-preflight
+  full_training_development: make full-finetune-dev
+  full_training_development_final_validation: make full-finetune-development-final-validation
+  full_training_development_finalize_selection: make full-finetune-development-finalize-selection
+  full_training_refit: make full-finetune-refit
+  final_holdout_preflight: make final-holdout-preflight
+  final_holdout_evaluation: make evaluate-final-holdout-refit-once
+  final_holdout_legacy_disabled: make evaluate-final-holdout-dy

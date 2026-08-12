@@ -9,7 +9,7 @@ ui:
 
 models:
   whisper_tiny_baseline:
-    display_name: Whisper Tiny — baseline
+    display_name: Whisper Tiny — Baseline
     backend: whisper
     status: baseline
     model_id: openai/whisper-tiny
@@ -22,7 +22,7 @@ models:
     enabled: true
 
   whisper_small_baseline:
-    display_name: Whisper Small — baseline
+    display_name: Whisper Small — Baseline
     backend: whisper
     status: baseline
     model_id: openai/whisper-small
@@ -34,19 +34,19 @@ models:
       - dyu
     enabled: true
 
-  whisper_tiny_dioula_pilot:
-    display_name: Whisper Tiny Dioula — adapté pilote
+  whisper_tiny_dioula_final:
+    display_name: Whisper Tiny — Dioula Final
     backend: whisper
-    status: pilot_adapted
+    status: final_adapted
     model_id: openai/whisper-tiny
     revision: be0ba7c2f24f0127b27863a23a08002af4c2c279
     config_path: configs/models/whisper_tiny.yaml
-    model_path: ${IVOIREVOICE_DIOULA_PILOT_MODEL_PATH}
-    checkpoint_name: checkpoint-000140
+    model_path: ${IVOIREVOICE_DIOULA_FINAL_MODEL_PATH}
+    checkpoint_name: checkpoint-002052
     task: transcribe
     language: dyu
-    training_audio_count: 2250
-    validation_audio_count: 600
+    training_audio_count: 16425
+    validation_audio_count: 2661
     device: auto
     languages:
       - dyu

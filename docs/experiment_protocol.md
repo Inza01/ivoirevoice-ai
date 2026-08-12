@@ -66,11 +66,12 @@ première validation d'adaptation contrôlée. Cette décision est limitée à c
 corpus privé et à cette sélection ; aucun fine-tuning n'est réalisé en
 Phase 4A.
 
-## Phase 5B — démonstrateur avec adaptation pilote
+## Phase 5B — démonstrateur avec modèle final gelé
 
-Les deux baselines et Tiny adapté pilote sont accessibles dans une interface
-locale de comparaison. Le tableau de bord ne recalcule pas les benchmarks :
-il charge leurs agrégats vérifiés et maintient deux expériences distinctes.
+Les deux baselines et Tiny Dioula Final sont accessibles dans une interface
+locale de comparaison. Le tableau de bord ne recalcule pas les benchmarks
+historiques : il charge leurs agrégats vérifiés et maintient deux expériences
+distinctes.
 
 - Expérience A : Tiny baseline contre Tiny adapté sur les mêmes 600 audios de
   validation ;
@@ -93,7 +94,45 @@ jamais leur chemin comme libellé et ces fichiers ne sont pas versionnés.
 L'interface reste liée à `127.0.0.1`, ne crée aucun lien public et n'ajoute
 aucune nouvelle métrique expérimentale.
 
-Le checkpoint `checkpoint-000140` reste hors Git. L'interface le résout via
-`IVOIREVOICE_DIOULA_PILOT_MODEL_PATH`, le charge séquentiellement et ne
-remplace jamais les deux baselines. Le modèle reste un pilote : le
-`final_holdout` n'a pas été évalué.
+Le checkpoint final `checkpoint-002052` reste hors Git. L'interface le résout
+via `IVOIREVOICE_DIOULA_FINAL_MODEL_PATH`, le charge séquentiellement et ne
+remplace jamais les deux baselines. `IVOIREVOICE_DIOULA_PILOT_MODEL_PATH`
+reste réservé aux workflows historiques d'entraînement.
+
+## Full development et refit
+
+Le développement complet a entraîné sur 13 764 audios et sélectionné le
+budget sur 2 661 audios de validation, avec des locuteurs disjoints. Sur cette
+même validation, `checkpoint-000140` obtient `WER=0,774152` et
+`CER=0,361319`, puis `checkpoint-001720` obtient `WER=0,441286` et
+`CER=0,183654`. Ce dernier a uniquement fixé le budget de refit.
+
+Le refit est reparti de `checkpoint-000140` avec optimizer, scheduler et
+GradScaler neufs. Il a utilisé les 16 425 audios train+validation de 18
+locuteurs pendant 2 052 updates. Le modèle final gelé est
+`checkpoint-002052`.
+
+## Évaluation finale one-time du refit gelé
+
+L'évaluation finale n'est ni un benchmark multi-modèle ni une nouvelle phase
+de sélection. Seul le checkpoint refit final, déjà gelé avant toute ouverture,
+peut traiter les 2 624 éléments restants du test. La baseline, le pilote et les
+checkpoints development n'accèdent pas à ce jeu.
+
+Un préflight sans lecture des références verrouille les empreintes et crée
+l'état `SEALED`. L'ouverture confirmée consomme immédiatement l'unique compteur
+et passe à `EVALUATION_IN_PROGRESS`; un succès devient `EVALUATED`, tandis
+qu'un échec après accès devient définitivement
+`EVALUATION_FAILED_AFTER_ACCESS`. Aucun retry automatique n'est permis.
+
+Le calcul conserve seulement des compteurs cumulés. Le résultat final contient
+WER, CER, RTF, loss, erreurs d'édition, dénominateurs, nombres d'audios et de
+locuteurs et provenance du runtime. Aucune référence, prédiction, identité ou
+chemin individuel n'est écrit. Les métriques ne peuvent déclencher aucun
+réentraînement, réglage ou second passage.
+
+L'unique évaluation officielle s'est terminée dans l'état `EVALUATED`, avec
+`evaluation_count=1`. Sur 2 624 audios de 3 locuteurs, le modèle final obtient
+`WER=0,332625`, `CER=0,123804`, `RTF=0,007853` et une loss finale de
+`0,346437`. Ce résultat est accepté tel quel. Il n'est pas comparé directement
+aux validations pilote et development, dont les jeux diffèrent.

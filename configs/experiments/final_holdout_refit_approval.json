@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "status": "approved_for_one_time_final_holdout",
+  "training_git_commit": "5a91ea506c897135baf153969170bf943fd60d0e",
+  "config_sha256": "8585ce3f3a5eb814ab770ce68a1a322e3d6806228200c728113acbe978d1c537",
+  "manifest_sha256": "3b680d108b8d2d106bf04708d79ea54599c9f998cba289356ae4ba0ff36e5572",
+  "refit_run_id": "0ed4271de2e85d4a1cafa37eac2e11c1b7a1e72132079f5b4517b9c5544de772",
+  "refit_selection_sha256": "4102c5c7ac314c6b5c65e9b92376531c7bb12d3b9826eb954250561891cc1fc0",
+  "source_checkpoint_name": "checkpoint-000140",
+  "source_checkpoint_sha256": "d2230ecad0dd2f997df0c039142a12970ec483a3a10d8611991bde886e82f035",
+  "final_checkpoint_name": "checkpoint-002052",
+  "final_checkpoint_sha256": "d9dd6469cd102e98b17d1e0750e51fa9107f3eb0847f130984cf993f033151c1",
+  "successful_optimizer_steps": 2052,
+  "refit_audio_count": 16425,
+  "refit_speaker_count": 18,
+  "final_holdout_count": 2624,
+  "historical_pilot_count": 150,
+  "historical_expected_holdout_speaker_count": 3,
+  "final_holdout_evaluation_count": 0,
+  "final_holdout_accessed": false,
+  "final_holdout_decoded": false,
+  "remaining_model_decisions": false
+}

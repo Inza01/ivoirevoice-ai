@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "status": "approved",
+  "methodological_authorization": "FINALIZE DEVELOPMENT SELECTION APPROUVÉ",
+  "candidate_report_filename": "development_final_validation_candidate.json",
+  "candidate_report_sha256": "0b6a959e98d1e09769089adbb9aa5094834e6b7874de5f9ba210394e54052f8d",
+  "evaluation_identity": {
+    "development_run_id": "3de3c8ffd9c844b165b7f1a7551aff573be6647f7f43a2f4cf35e7f256330d04",
+    "development_git_commit": "6b2811a32bb10092779c2300846c6502e416167e",
+    "evaluation_git_commit": "61fa06ec134a0f46ac556fccc2b9bb466d780dac",
+    "config_hash": "8585ce3f3a5eb814ab770ce68a1a322e3d6806228200c728113acbe978d1c537",
+    "candidate_checkpoint_hash": "ac99b6abdbb6fb692561e38b6d6db546e0a7a320ba2b5db2a1148e8c55094847",
+    "validation_fingerprint": "e73898272bac4e652be0295cb5269f7a08fe86a1080908908da2fc6d8497ccf7"
+  },
+  "metric_policy": [
+    "wer_micro",
+    "cer_micro",
+    "validation_loss",
+    "earliest_step"
+  ]
+}

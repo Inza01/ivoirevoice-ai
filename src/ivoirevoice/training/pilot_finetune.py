@@ -9,7 +9,6 @@ import json
 import math
 import os
 import random
-import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,6 +30,13 @@ from ivoirevoice.training.pilot_selection import (
     write_selection_report,
 )
 from ivoirevoice.training.pilot_settings import PilotSettings, load_pilot_settings
+from ivoirevoice.training.whisper_finetune import (
+    accumulation_group_sizes,
+    checkpoint_directories,
+    free_disk_gib,
+    latest_complete_checkpoint,
+    save_checkpoint_atomic,
+)
 
 BASELINE_CACHE_FILENAME = "baseline_validation_private.json"
 TRAINING_STATE_FILENAME = "trainer_state.json"
@@ -347,28 +353,19 @@ def comparison_metrics(
 def find_latest_checkpoint(directory: Path) -> Path | None:
     """Return the latest complete numeric checkpoint suitable for resume."""
 
-    if not directory.is_dir():
-        return None
-    candidates: list[tuple[int, Path]] = []
-    for path in directory.glob("checkpoint-*"):
-        try:
-            step = int(path.name.removeprefix("checkpoint-"))
-        except ValueError:
-            continue
-        required = (
-            path / TRAINING_STATE_FILENAME,
-            path / "optimizer.pt",
-            path / "scheduler.pt",
-            path / "config.json",
-        )
-        if all(item.is_file() for item in required):
-            candidates.append((step, path))
-    return max(candidates, default=(0, None), key=lambda item: item[0])[1]
+    return latest_complete_checkpoint(
+        directory,
+        (
+            TRAINING_STATE_FILENAME,
+            "optimizer.pt",
+            "scheduler.pt",
+            "config.json",
+        ),
+    )
 
 
 def _free_disk_gib(path: Path) -> float:
-    path.mkdir(parents=True, exist_ok=True)
-    return shutil.disk_usage(path).free / 1024**3
+    return free_disk_gib(path)
 
 
 def _check_disk(settings: PilotSettings) -> None:
@@ -381,27 +378,7 @@ def _check_disk(settings: PilotSettings) -> None:
 
 
 def _checkpoint_paths(directory: Path) -> list[Path]:
-    return sorted(
-        (
-            path
-            for path in directory.glob("checkpoint-*")
-            if path.is_dir() and path.name.removeprefix("checkpoint-").isdigit()
-        ),
-        key=lambda path: int(path.name.removeprefix("checkpoint-")),
-    )
-
-
-def _prune_checkpoints(
-    directory: Path,
-    limit: int,
-    best_checkpoint_name: str,
-) -> None:
-    checkpoints = _checkpoint_paths(directory)
-    keep = {best_checkpoint_name}
-    keep.update(path.name for path in checkpoints[-max(1, limit - 1) :])
-    for path in checkpoints:
-        if path.name not in keep:
-            shutil.rmtree(path)
+    return checkpoint_directories(directory)
 
 
 def _save_checkpoint(
@@ -415,28 +392,20 @@ def _save_checkpoint(
     state: Mapping[str, Any],
     torch: Any,
 ) -> Path:
-    _check_disk(settings)
-    step = int(state["global_step"])
-    final_path = settings.checkpoint_directory / f"checkpoint-{step:06d}"
-    temporary = settings.checkpoint_directory / f".checkpoint-{step:06d}.tmp"
-    if temporary.exists():
-        shutil.rmtree(temporary)
-    temporary.mkdir(parents=True)
-    model.save_pretrained(temporary, safe_serialization=True)
-    processor.save_pretrained(temporary)
-    torch.save(optimizer.state_dict(), temporary / "optimizer.pt")
-    torch.save(scheduler.state_dict(), temporary / "scheduler.pt")
-    torch.save(scaler.state_dict(), temporary / "scaler.pt")
-    _write_json(temporary / TRAINING_STATE_FILENAME, state)
-    if final_path.exists():
-        shutil.rmtree(final_path)
-    temporary.replace(final_path)
-    _prune_checkpoints(
-        settings.checkpoint_directory,
-        settings.save_total_limit,
-        str(state["best_checkpoint_name"]),
+    return save_checkpoint_atomic(
+        directory=settings.checkpoint_directory,
+        minimum_free_disk_gib=settings.minimum_free_disk_gib,
+        save_total_limit=settings.save_total_limit,
+        best_checkpoint_name=str(state["best_checkpoint_name"]),
+        state_filename=TRAINING_STATE_FILENAME,
+        model=model,
+        processor=processor,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        scaler=scaler,
+        state=state,
+        torch=torch,
     )
-    return final_path
 
 
 def _linear_warmup_scheduler(
@@ -606,6 +575,10 @@ def _train_pilot(
     for epoch in range(settings.num_train_epochs):
         ordered = _ordered_train_rows(selection.train_rows, settings.seed, epoch)
         batches = _chunks(ordered, settings.train_batch_size)
+        group_sizes = accumulation_group_sizes(
+            len(batches),
+            settings.gradient_accumulation_steps,
+        )
         completed = (
             int(state["micro_batches_completed"]) if epoch == int(state["epoch"]) else 0
         )
@@ -623,7 +596,8 @@ def _train_pilot(
             ):
                 output = model(**batch)
                 raw_loss = output.loss
-                loss = raw_loss / settings.gradient_accumulation_steps
+                group_index = batch_index // settings.gradient_accumulation_steps
+                loss = raw_loss / group_sizes[group_index]
             loss_value = float(raw_loss.detach().cpu())
             if not math.isfinite(loss_value):
                 raise ConfigError("Loss train NaN/Inf : arrêt immédiat.")

@@ -101,6 +101,7 @@ def _status_label(status: str) -> str:
         "baseline": "modèle baseline",
         "adapted": "modèle adapté",
         "pilot_adapted": "modèle pilote adapté",
+        "final_adapted": "modèle final gelé",
     }.get(status, status)
 
 
@@ -290,9 +291,9 @@ strictement entre entraînement, validation et test.
 `Gradio → ComparisonService → ModelRegistry → ASRBackend → EvaluationService → ExportService`
 
 Les modèles disponibles sont Whisper Tiny et Whisper Small en baseline, ainsi
-que Whisper Tiny Dioula adapté pilote. Ils sont chargés à la demande, un par
-un, puis libérés. Le checkpoint pilote reste hors de Git et son emplacement
-provient exclusivement d'une variable d'environnement.
+que Whisper Tiny Dioula Final. Ils sont chargés à la demande, un par un, puis
+libérés. Le checkpoint final reste hors de Git et son emplacement provient
+exclusivement de `IVOIREVOICE_DIOULA_FINAL_MODEL_PATH`.
 
 ### Lire les métriques
 
@@ -306,12 +307,13 @@ ne fournit pas ici de score de confiance calibré.
 
 ### Limites et éthique
 
-Le modèle adapté reste un pilote et n'est pas le modèle final. Les données,
-références, prédictions et modèles dérivés restent strictement locaux, car la
-licence et le consentement de redistribution ne sont pas confirmés. Le
-`final_holdout` n'a pas été évalué. Le baoulé constitue une perspective, pas
-une capacité actuelle. Cette interface ne doit pas être exposée publiquement
-avec les artefacts privés.
+Le modèle final reste expérimental et spécialisé au contexte local. Sur
+l'unique final holdout de 2 624 audios, il obtient 33,26 % de WER et 12,38 %
+de CER. Le holdout n'est jamais réévalué. Les données, prédictions et modèles
+dérivés restent strictement locaux, car la licence et le consentement de
+redistribution ne sont pas confirmés. Le baoulé constitue une perspective,
+pas une capacité actuelle. Cette interface ne doit pas être exposée
+publiquement avec les artefacts privés.
 
 Projet : [github.com/Inza01/ivoirevoice-ai](https://github.com/Inza01/ivoirevoice-ai)
 """
