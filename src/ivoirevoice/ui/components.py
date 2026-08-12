@@ -308,12 +308,14 @@ ne fournit pas ici de score de confiance calibré.
 ### Limites et éthique
 
 Le modèle final reste expérimental et spécialisé au contexte local. Sur
-l'unique final holdout de 2 624 audios, il obtient 33,26 % de WER et 12,38 %
-de CER. Le holdout n'est jamais réévalué. Les données, prédictions et modèles
-dérivés restent strictement locaux, car la licence et le consentement de
-redistribution ne sont pas confirmés. Le baoulé constitue une perspective,
-pas une capacité actuelle. Cette interface ne doit pas être exposée
-publiquement avec les artefacts privés.
+l'unique final holdout indépendant de 2 624 audios et 3 locuteurs, il obtient
+33,26 % de WER, 12,38 % de CER et un RTF de 0,00785. Ce modèle gelé correspond
+au checkpoint final produit après 2 052 steps réussis.
+**Independent final holdout — evaluated once.** Le holdout n'est jamais réévalué. Les données,
+prédictions et modèles dérivés restent strictement locaux, car la licence et
+le consentement de redistribution ne sont pas confirmés. Le baoulé constitue
+une perspective, pas une capacité actuelle. Cette interface ne doit pas être
+exposée publiquement avec les artefacts privés.
 
 Projet : [github.com/Inza01/ivoirevoice-ai](https://github.com/Inza01/ivoirevoice-ai)
 """

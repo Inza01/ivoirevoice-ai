@@ -2,15 +2,42 @@
 
 ## Préparation hors caméra
 
-Configurer les emplacements locaux sans les inscrire dans Git :
+Le checkpoint et le cache restent hors Git. Configurer uniquement leur
+emplacement local :
 
 ```bash
-make ui \
-  DIOULA_DATA_DIR="/path/to/voices_data" \
-  ARTIFACTS_DIR="/path/to/artifacts" \
-  MODEL_CACHE_DIR="/path/to/cache/models" \
-  DIOULA_FINAL_MODEL_PATH="/path/to/checkpoint-002052"
+export IVOIREVOICE_DIOULA_FINAL_MODEL_PATH="/path/to/checkpoint-002052"
+export IVOIREVOICE_MODEL_CACHE_DIR="/path/to/cache/models"
+make demo-preflight
+make demo-smoke
+make demo
 ```
+
+Le preflight exige `main` propre, CUDA, les révisions Tiny/Small en cache, le
+hash final gelé, le port libre et au moins 2 GiB de disque. Il charge puis
+libère le modèle final sur CUDA sans transcrire d'audio. `make demo` masque
+volontairement les racines corpus et artefacts privés.
+
+`make demo-smoke` remplace les commandes Python improvisées : il transcrit une
+seconde de silence synthétique avec les trois modèles, contrôle le chemin
+comparaison/métriques/exports, puis supprime ses fichiers temporaires. Ce test
+est purement technique et ne constitue pas un benchmark ASR.
+
+Un nouvel enregistrement au microphone peut être créé pendant la démo. Pour
+un fichier externe préenregistré, confirmer explicitement sa provenance :
+
+```bash
+export IVOIREVOICE_DEMO_AUDIO_PATH="/path/to/external_demo.wav"
+export IVOIREVOICE_DEMO_AUDIO_CONFIRMATION="SAFE_EXTERNAL_DEMO_AUDIO"
+make demo-preflight
+```
+
+Le fichier ne doit provenir ni de train, validation, pilot test, final holdout,
+ni d'un artefact de prédictions. Si aucun fichier sûr n'est disponible, le
+preflight affiche `DEMO AUDIO REQUIRED` et aucun audio n'est choisi
+automatiquement. Son statut est alors `READY WITH DEMO AUDIO REQUIRED` : les
+modèles et l'environnement sont prêts, mais il faut encore fournir le nouvel
+audio. Le dossier local recommandé `demo_inputs/` est ignoré par Git.
 
 Puis :
 
@@ -20,8 +47,9 @@ Puis :
 3. choisir un audio dioula court autorisé pour la démonstration et préparer sa
    référence ;
 4. effectuer une répétition Tiny baseline contre Tiny Dioula Final ;
-5. vérifier que le benchmark distingue explicitement les Expériences A et B ;
-6. fermer tout écran qui montre un chemin local ou un nom réel.
+5. vérifier que le benchmark public distingue explicitement les expériences ;
+6. constater que l'analyse d'erreurs privée est indisponible en mode démo ;
+7. fermer tout écran qui montre un chemin local ou un nom réel.
 
 L'interface doit rester locale : ne jamais activer le partage public Gradio.
 
@@ -65,17 +93,31 @@ comparaison croisée directe.
 Si l'inférence en direct échoue :
 
 1. signaler sobrement que l'échec du modèle est isolé par l'interface ;
-2. ouvrir l'onglet **Analyse des erreurs**, qui utilise les prédictions
-   Phase 4C préenregistrées et anonymisées ;
-3. montrer une ligne améliorée, la référence, les prédictions baseline/adaptée
-   et leurs erreurs individuelles ;
-4. poursuivre avec le benchmark structuré préenregistré ;
-5. ne jamais inventer ou recalculer une métrique pendant la présentation.
+2. ne pas ouvrir ni charger les prédictions privées historiques ;
+3. poursuivre avec le benchmark public agrégé et l'onglet **À propos** ;
+4. annoncer les résultats finaux gelés : WER 33,26 %, CER 12,38 %, RTF
+   0,00785, sur 2 624 audios et 3 locuteurs ;
+5. rappeler que le holdout indépendant a été évalué exactement une fois ;
+6. ne jamais inventer ou recalculer une métrique pendant la présentation.
 
-Ce mode démontre l'écart baseline/adapté avec les mêmes résultats persistés,
-mais ne prétend pas être une nouvelle inférence du modèle final. Le résultat
-final agrégé reste disponible dans l'onglet **À propos** ; le holdout n'est
-jamais rouvert pour la démonstration.
+Le fallback utilise uniquement des agrégats publics. Il ne relance aucune
+inférence scientifique et ne rouvre jamais le holdout.
+
+## Incidents de démonstration
+
+- Whisper Small lent : sélectionner uniquement Tiny baseline et Tiny Dioula
+  Final.
+- Microphone navigateur indisponible : utiliser l'upload de l'audio externe
+  explicitement confirmé.
+- Internet indisponible : les deux révisions épinglées doivent avoir été
+  confirmées par `make demo-preflight`.
+- Relance Gradio : interrompre le serveur, puis exécuter `make demo`.
+- Port 7860 occupé : choisir un port libre sans exposer le serveur :
+
+  ```bash
+  make demo-preflight UI_PORT=7862
+  make demo UI_PORT=7862
+  ```
 
 ## Réponses courtes
 

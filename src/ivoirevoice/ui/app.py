@@ -134,7 +134,7 @@ def build_demo_services(catalog_path: str | Path | None = None) -> DemoServices:
         pilot_benchmark_error = str(exc)
     if artifacts_root is None:
         historical_benchmark_error = "IVOIREVOICE_ARTIFACTS_DIR n'est pas configuré."
-        error_samples_error = historical_benchmark_error
+        error_samples_error = "Analyse détaillée non disponible en mode démonstration sécurisé."
     else:
         try:
             historical_benchmark = load_benchmark_view(

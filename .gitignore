@@ -57,6 +57,7 @@ Thumbs.db
 /cache/
 /outputs/
 /runs/
+/demo_inputs/
 /wandb/
 /mlruns/
 /tensorboard/
