@@ -18,7 +18,8 @@ needed for a task.
 
 - [Data card](data_card.md): corpus structure and governance.
 - [Model card](model_card.md): model scope, evidence and limitations.
-- [Training protocol](training_protocol.md): smoke and bounded pilot rules.
+- [Training protocol](training_protocol.md): smoke, pilot, full refit and sealed
+  evaluation rules.
 - [Demo guide](demo_guide.md): three-minute demonstration and fallback.
 
 ## Operations and governance

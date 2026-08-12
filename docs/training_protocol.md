@@ -1,4 +1,4 @@
-# Protocole d’entraînement local — Phases 4B et 4C
+# Protocole d'entraînement local et d'évaluation scellée
 
 ## Portée
 
@@ -373,6 +373,30 @@ Après l'ouverture, le résultat est accepté tel quel. Il est interdit de
 réentraîner, modifier le décodage ou la normalisation, changer les
 hyperparamètres, sélectionner un autre checkpoint ou réévaluer le holdout.
 
+#### Résultat terminal
+
+L'unique ouverture autorisée est terminée : état `EVALUATED`, compteur
+`evaluation_count=1`. Le modèle gelé `checkpoint-002052`, au step 2 052, a
+été mesuré sur les 2 624 audios et 3 locuteurs du final holdout :
+
+| Métrique agrégée | Valeur |
+|---|---:|
+| WER | 0,33262458967472397 |
+| CER | 0,12380383285671603 |
+| RTF | 0,007853382888764181 |
+| Loss finale | 0,34643741533523653 |
+| Substitutions | 5 690 |
+| Insertions | 1 363 |
+| Suppressions | 1 864 |
+| Correspondances exactes | 334 |
+
+Le holdout n'a servi ni à l'entraînement, ni à la validation, ni à la
+sélection ou au calcul du budget de refit. Le modèle, le décodage et la
+normalisation n'ont pas changé après le résultat. Toute commande ci-dessus est
+conservée comme protocole de provenance ; elle ne doit pas être relancée. La
+copie publique revue est `reports/final_holdout_metrics.json` et ne contient
+que des agrégats.
+
 ### Diagnostic FP16 train-only
 
 Le rapport unique est écrit hors Git sous
@@ -455,5 +479,5 @@ consécutifs observé, sans données individuelles.
   `local_research_only`.
 
 L’absence de CUDA est un arrêt attendu, pas un motif de fallback CPU ou Colab.
-L’implémentation seule ne constitue ni un entraînement exécuté ni une
-évaluation du holdout.
+Le cycle complet est clos : aucun nouvel entraînement, refit ou accès au
+holdout n'est autorisé par ce protocole.

@@ -28,7 +28,7 @@ aggregates.
 - Run `make verify` before handoff.
 - Never use the validation or test split as training data.
 - Never enable Gradio public sharing in repository defaults.
-- Never download or publish the private pilot checkpoint automatically.
+- Never download or publish the private pilot or final checkpoint automatically.
 - Keep detailed predictions under `IVOIREVOICE_ARTIFACTS_DIR`.
 - Never persist per-sample references, predictions, speaker identifiers or
   audio paths from the one-time final holdout, even under the private artifact

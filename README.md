@@ -4,7 +4,7 @@ Local, reproducible automatic speech recognition experiments for French and
 Dioula in the Ivorian context.
 
 IvoireVoice AI provides a Gradio comparison dashboard, a speaker-disjoint data
-pipeline, Whisper baselines, a bounded Dioula adaptation pilot, ASR metrics
+pipeline, Whisper baselines, a full Dioula Whisper Tiny adaptation, ASR metrics
 and privacy-aware exports. The project is a research MVP, not an
 industrial-ready transcription service.
 
@@ -30,7 +30,8 @@ keeping:
 - inventory and validate a local Dioula speech corpus;
 - build deterministic speaker-disjoint splits;
 - compare public Whisper Tiny and Whisper Small baselines;
-- adapt Whisper Tiny on a bounded train/validation pilot;
+- adapt Whisper Tiny through a bounded pilot, full development and frozen
+  refit;
 - compare baseline and adapted outputs in a local interface;
 - report WER, CER, latency, RTF and edit counts;
 - keep the architecture extensible to Baoulé and other Ivorian languages.
@@ -54,7 +55,7 @@ keeping:
 |---|---|---|
 | [`openai/whisper-tiny`](https://huggingface.co/openai/whisper-tiny) | Primary public baseline and adaptation base | Used |
 | [`openai/whisper-small`](https://huggingface.co/openai/whisper-small) | Public comparison baseline | Used |
-| Whisper Tiny Dioula pilot, `checkpoint-000140` | Locally adapted pilot | Used locally, not distributed |
+| Whisper Tiny Dioula Final, `checkpoint-002052` | Frozen final refit | Used locally, not distributed |
 
 Only Whisper Tiny was fine-tuned. Wav2Vec2, XLS-R and MMS are possible future
 research directions; they were **not implemented or evaluated in this MVP**.
@@ -109,7 +110,7 @@ data contract is documented in [`data/README.md`](data/README.md).
 
 ## Fine-tuning methodology
 
-The Phase 4C pilot used:
+The Phase 4C pilot established the training pipeline with:
 
 - base model: `openai/whisper-tiny`, pinned revision
   `be0ba7c2f24f0127b27863a23a08002af4c2c279`;
@@ -123,9 +124,12 @@ The Phase 4C pilot used:
 - task `transcribe`, without forcing an unsupported `dyu` language token;
 - best validation checkpoint: `checkpoint-000140`.
 
-The historical 150-audio test pilot and the final holdout were not used for
-training or hyperparameter selection. The full training phase has not been
-launched.
+Full development then used all 13,764 train audios and selected its budget on
+the 2,661 validation audios. `checkpoint-001720` fixed a 2,052-step refit
+budget. The final refit restarted from the pilot weights with fresh optimizer,
+scheduler and GradScaler states, then trained on all 16,425 train+validation
+audios from 18 speakers. The 150-audio historical pilot and the 2,624-audio
+final holdout were excluded from training and model selection.
 
 ## Metrics
 
@@ -137,7 +141,36 @@ launched.
 Lower WER, CER and RTF are better. WER can exceed 100% when a model produces
 many insertions.
 
-## Pilot results
+## Final Dioula ASR Results
+
+| Metric | Final Holdout |
+|---|---:|
+| WER | 33.26% |
+| CER | 12.38% |
+| RTF | 0.00785 |
+| Final loss | 0.3464 |
+| Audios | 2,624 |
+| Speakers | 3 |
+
+- substitutions: 5,690
+- insertions: 1,363
+- deletions: 1,864
+- exact matches: 334
+
+These aggregate results come from the independent **final holdout**. Its 2,624
+audios were never used for training, validation, model selection or
+hyperparameter tuning. The frozen refit was evaluated exactly once, and the
+model, decoding and normalization were not changed afterward. The reviewed
+machine-readable report is
+[`reports/final_holdout_metrics.json`](reports/final_holdout_metrics.json).
+
+## Experimental progression
+
+The following stages use different protocols and datasets. Their metrics
+document project progression but **must not be interpreted as a direct
+cross-dataset comparison**.
+
+### Pilot — historical validation protocol
 
 Both models below were evaluated on the **same 600 validation audios and
 references**:
@@ -150,8 +183,27 @@ references**:
 - WER relative reduction: **32.25%**
 - CER relative reduction: **51.44%**
 
-These are pilot validation results, not final test or industrial performance.
-The adapted model is still a pilot.
+These are pilot validation results, not final-holdout or industrial
+performance.
+
+### Full development — 2,661 validation audios
+
+| Model | Dataset | WER | CER |
+|---|---|---:|---:|
+| `checkpoint-000140` | 2,661 validation audios | 0.774152 | 0.361319 |
+| `checkpoint-001720` | 2,661 validation audios | 0.441286 | 0.183654 |
+
+`checkpoint-001720` was selected only to determine the frozen refit budget. It
+is not the final model and never accessed the final holdout.
+
+### Final refit — independent final holdout
+
+| Model | Dataset | WER | CER | RTF |
+|---|---|---:|---:|---:|
+| `checkpoint-002052` | 2,624 final-holdout audios | 0.332625 | 0.123804 | 0.007853 |
+
+The final model was accepted as evaluated. No gain is calculated between this
+row and validation rows because the datasets differ.
 
 ### Separate historical baseline experiment
 
@@ -180,7 +232,7 @@ These values must not be mixed with the 600-audio validation benchmark.
 │   ├── evaluation/          # Metrics and baseline evaluation
 │   ├── models/              # Backend contract, registry and Whisper
 │   ├── services/            # Comparison, evaluation and export services
-│   ├── training/            # Smoke and bounded pilot workflows
+│   ├── training/            # Smoke, pilot, full refit and sealed evaluation
 │   └── ui/                  # Gradio application
 ├── tests/                   # Offline unit and integration tests
 ├── .env.example
@@ -192,7 +244,7 @@ These values must not be mixed with the 600-audio validation benchmark.
 
 - Python 3.11;
 - enough disk space for public Whisper caches and local checkpoints;
-- CUDA is required only for reproducing the Phase 4C pilot configuration;
+- CUDA is required for reproducing the pilot and full-training workflows;
 - CPU is supported for lightweight checks, tests and the smoke runner.
 
 Dependency ranges are maintained in `pyproject.toml`. The convenience files
@@ -253,14 +305,16 @@ Important variables:
 | `IVOIREVOICE_ARTIFACTS_DIR` | Private manifests, predictions and reports |
 | `IVOIREVOICE_MODEL_CACHE_DIR` | Hugging Face model cache |
 | `IVOIREVOICE_CHECKPOINT_DIR` | Training checkpoint root |
-| `IVOIREVOICE_DIOULA_PILOT_MODEL_PATH` | Local `checkpoint-000140` directory |
+| `IVOIREVOICE_DIOULA_PILOT_MODEL_PATH` | Historical training source `checkpoint-000140` |
+| `IVOIREVOICE_DIOULA_FINAL_MODEL_PATH` | Live UI model `checkpoint-002052` |
 | `IVOIREVOICE_UI_HOST` | Local host, default `127.0.0.1` |
 | `IVOIREVOICE_UI_PORT` | Gradio port, default `7860` |
 
 The repository contains placeholders only. If
-`IVOIREVOICE_DIOULA_PILOT_MODEL_PATH` is missing, the adapted model returns a
-clear isolated configuration error while the two public baselines remain
-usable. The application never downloads the private checkpoint.
+`IVOIREVOICE_DIOULA_FINAL_MODEL_PATH` is missing or does not point to
+`checkpoint-002052`, the final model returns a clear isolated configuration
+error while the two public baselines remain usable. The application never
+downloads the private checkpoint.
 
 ## Run the Gradio dashboard
 
@@ -269,7 +323,7 @@ make ui \
   DIOULA_DATA_DIR="/path/to/voices_data" \
   ARTIFACTS_DIR="/path/to/artifacts" \
   MODEL_CACHE_DIR="/path/to/cache/models" \
-  DIOULA_PILOT_MODEL_PATH="/path/to/checkpoint-000140"
+  DIOULA_FINAL_MODEL_PATH="/path/to/checkpoint-002052"
 ```
 
 Open `http://127.0.0.1:7860`. Public Gradio sharing is disabled.
@@ -298,10 +352,11 @@ make review-dioula-training
 make smoke-overfit-dy
 ```
 
-`make pilot-finetune-dy` reproduces only the bounded pilot and requires the
-authorized local data, cache, artifact and checkpoint roots. Do not launch a
-full training or final-holdout evaluation without a separate experimental
-decision.
+`make pilot-finetune-dy` describes the bounded historical pilot and requires
+the authorized local data, cache, artifact and checkpoint roots. The full
+development, refit and one-time holdout workflows are retained for provenance
+and regression tests. Their official cycle is complete: do not relaunch
+training, refit or final-holdout evaluation.
 
 ## API
 
@@ -366,17 +421,19 @@ scope is `local_research_only`.
 
 ## Checkpoint policy
 
-`checkpoint-000140` is not included and must not be copied into the
-repository. Authorized local users set
-`IVOIREVOICE_DIOULA_PILOT_MODEL_PATH`. The checkpoint and derived model remain
-subject to the source-data governance decision.
+Neither `checkpoint-000140` nor the final `checkpoint-002052` is included or
+authorized for publication. Historical training uses
+`IVOIREVOICE_DIOULA_PILOT_MODEL_PATH`; the local UI uses
+`IVOIREVOICE_DIOULA_FINAL_MODEL_PATH`. Both checkpoints remain subject to the
+source-data governance decision.
 
 ## Limitations
 
-- no final-holdout evaluation;
-- no complete fine-tuning run;
-- limited speakers and one pilot epoch;
-- no industrial robustness claim for noise, accents or recording devices;
+- the final model is specialized to the available Dioula/local context;
+- performance may vary with accent, noise, microphone and application domain;
+- the corpus is limited to the available collection context;
+- the final holdout contains only 3 speaker groups;
+- no result guarantees equivalent production performance;
 - French evaluation has not yet been completed;
 - the real ASR backend is not connected to the FastAPI route;
 - the Gradio interface is local and has no public authentication layer;
@@ -385,7 +442,7 @@ subject to the source-data governance decision.
 ## Future work
 
 - linguist-reviewed tone and normalization policy;
-- broader authorized Dioula training and final evaluation;
+- broader authorized Dioula data and external evaluation;
 - French benchmarking;
 - Baoulé data governance and ASR experiments;
 - optional exploration of Wav2Vec2, XLS-R or MMS;

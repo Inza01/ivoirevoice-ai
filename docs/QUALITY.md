@@ -7,8 +7,8 @@ known gap changes.
 |---|---:|---|---|
 | Data pipeline | A- | deterministic split, hashes, quarantine, unit tests | corpus governance remains local |
 | Model adapters | B+ | typed backend, lazy load/unload, pinned revisions | real-model CI is optional |
-| Evaluation | A- | internal WER/CER, comparable-run checks | no final-holdout evidence |
-| Training | B+ | smoke/pilot gates, deterministic seed, split checks | pilot loop is a large module |
+| Evaluation | A- | internal WER/CER, comparable-run checks, one-time aggregate holdout evidence | final holdout has only 3 speaker groups |
+| Training | A- | smoke/pilot/full gates, deterministic seed, split checks, atomic recovery | training orchestration remains complex |
 | Services | A- | isolated failures, typed results, privacy-safe exports | limited runtime telemetry |
 | Gradio UI | B+ | offline construction tests, benchmark separation | Gradio 6 deprecations |
 | FastAPI | B | health/integration tests | real Whisper route not connected |

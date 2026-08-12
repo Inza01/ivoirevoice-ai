@@ -2,14 +2,14 @@
 
 ## Expected behavior
 
-- public models continue when the private pilot checkpoint is unavailable;
+- public baselines continue when the private final checkpoint is unavailable;
 - one model failure does not discard successful comparison results;
 - models load sequentially and release memory after use;
 - audio validation rejects unsupported, oversized or invalid inputs early;
 - training stops on non-finite loss;
 - experiment selection and split violations fail closed;
 - full training refuses CPU fallback and any run without working CUDA/FP16;
-- final-holdout access is sealed to one frozen model identity;
+- final-holdout access is consumed and sealed to one frozen model identity;
 - unit tests remain offline and deterministic.
 
 ## Feedback loops
@@ -33,9 +33,10 @@ stack; this is tracked as technical debt rather than implied as implemented.
 ## Recovery
 
 - model and UI failures are retriable without modifying data;
-- pilot training checkpoints are external and resumable;
+- pilot and final checkpoints are external to Git;
 - full development/refit checkpoints are atomic, bounded and content-addressed;
-- a started final-holdout receipt permanently blocks further training;
+- the terminal `EVALUATED` holdout receipt permanently blocks further
+  training and holdout access;
 - frozen dataset artifacts are immutable;
 - generated private artifacts can be regenerated from authorized sources;
 - repository changes are recoverable through normal Git branches and commits.
