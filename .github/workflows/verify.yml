@@ -26,10 +26,22 @@ jobs:
           python-version: "3.11"
           cache: pip
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
       - name: Install project
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install -e ".[core,data,ml,api,ui,dev]"
+
+      - name: Install web platform
+        run: npm ci --prefix web
+
+      - name: Audit web dependencies
+        run: npm run audit --prefix web
 
       - name: Run repository feedback loop
         run: make verify
