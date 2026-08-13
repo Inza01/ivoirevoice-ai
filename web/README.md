@@ -1,8 +1,8 @@
 # IvoireVoice web platform
 
-This directory contains the isolated Next.js frontend for the Phase 2 language platform. It must
-communicate with IvoireVoice through public FastAPI contracts; it must never import Python model
-code or read corpus, checkpoint or prediction directories.
+This directory contains the isolated Next.js frontend for the Phase 2 language platform. Its
+transcription page communicates with IvoireVoice through public FastAPI contracts; it never imports
+Python model code or reads corpus, checkpoint or prediction directories.
 
 ## Runtime
 
@@ -66,6 +66,19 @@ bounded (25 MiB of audio plus a small multipart allowance), upstream calls time 
 error bodies contain stable codes only. The handler does not log or persist request or response
 content.
 
-No user audio is retained by this frontend by default. Translation, learning content and
-pronunciation scoring remain unavailable or explicitly experimental until their providers and
-content have been validated.
+The ASR page accepts WAV, MP3, FLAC and OGG up to 25 MiB; FastAPI performs the authoritative decode
+and 30-second duration validation. It uses runtime discovery for `fr`, `en`, `dyu` and compatible
+models. Auto-detection and microphone capture remain disabled. Copy and TXT/JSON downloads happen
+only in the browser and exclude the source filename and private model metadata.
+
+Run FastAPI and Next.js from the repository root in two terminals:
+
+```bash
+make api
+make web
+```
+
+No user audio is retained by this frontend or backend. Translation, learning content and
+pronunciation scoring remain unavailable or explicitly `coming_soon` until their providers and
+content have been validated. This local MVP has no authentication or rate limiting and must not be
+exposed directly to the Internet.

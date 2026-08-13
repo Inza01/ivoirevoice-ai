@@ -4,9 +4,9 @@
 
 Ce document définit le produit cible de la Phase 2 et le périmètre de sa
 première fondation web. Il complète, sans le remplacer, le
-[contrat du démonstrateur ASR local](mvp.md). Le démonstrateur Gradio reste la
-seule interface reliée au modèle Dioula final tant que l'intégration FastAPI de
-production n'est pas terminée.
+[contrat du démonstrateur ASR local](mvp.md). Le démonstrateur Gradio reste
+l'interface de comparaison historique ; la page web Transcrire est désormais
+raccordée à une API FastAPI locale, sécurisée pour des uploads éphémères.
 
 La Phase 2 fait évoluer IvoireVoice vers une plateforme multilingue réunissant
 transcription, traduction et apprentissage. Elle ne modifie ni le modèle gelé
@@ -58,9 +58,9 @@ peut par exemple avoir un ASR expérimental et aucune traduction disponible.
 
 | Capacité | Preuve actuelle | Statut dans la nouvelle plateforme avant intégration | Présentation autorisée |
 |---|---|---|---|
-| ASR dioula (`dyu`) | Modèle final gelé utilisable localement dans Gradio | `coming_soon` | « Transcription dioula en cours d'intégration » ; le modèle reste qualifié d'expérimental |
-| ASR français (`fr`) | Baselines acceptant `fr`, sans évaluation française achevée | `coming_soon` | Ne pas promettre une qualité validée |
-| ASR anglais (`en`) | Non configuré dans l'application actuelle | `coming_soon` | Ne pas afficher de résultat simulé |
+| ASR dioula (`dyu`) | Modèle final gelé raccordé localement via le service existant | `experimental` | Résultat réel, sans promesse hors du corpus observé |
+| ASR français (`fr`) | Baselines multilingues raccordées, sans évaluation française achevée | `experimental` | Ne pas promettre une qualité validée |
+| ASR anglais (`en`) | Baselines multilingues raccordées, sans benchmark anglais publié | `experimental` | Résultat réel local, qualité non validée |
 | Traduction français → dioula | Aucun fournisseur implémenté ou validé | `coming_soon` | Architecture seulement |
 | Traduction dioula → français | Aucun fournisseur implémenté ou validé | `coming_soon` | Architecture seulement |
 | Traduction anglais → dioula | Aucun fournisseur implémenté ou validé | `coming_soon` | Architecture seulement |
@@ -142,7 +142,8 @@ audio unique.
 ### Transcrire un audio
 
 1. L'utilisateur ouvre **Transcrire**.
-2. Il choisit un fichier autorisé ou lance un enregistrement au microphone.
+2. Il choisit ou dépose un fichier autorisé ; le microphone reste indiqué
+   comme une capacité future.
 3. Il lit l'information de traitement et confirme l'envoi.
 4. Il choisit la langue disponible ou le mode automatique lorsque celui-ci est
    réellement pris en charge.
@@ -253,7 +254,8 @@ autrement que par la couleur.
 
 ### Transcrire
 
-- upload et microphone comme alternatives équivalentes ;
+- upload par sélecteur ou glisser-déposer ; microphone explicitement
+  indisponible dans ce lot ;
 - langue audio distincte de la locale d'interface ;
 - validation du format, de la taille et de la durée ;
 - résultat large et lisible ;
@@ -601,9 +603,9 @@ La première implémentation autorisée comprend uniquement :
 - des contenus pédagogiques de démonstration clairement marqués ;
 - des tests de rendu, navigation, responsive et accessibilité.
 
-La Foundation ne comprend pas :
+La Foundation et son intégration ASR ne comprennent pas :
 
-- migration complète de l'ASR ;
+- remplacement ou réentraînement des modèles ASR ;
 - nouveau modèle ou nouvel entraînement ;
 - traduction réelle ou simulée ;
 - contenu dioula définitif ;
@@ -615,7 +617,8 @@ La Foundation ne comprend pas :
 
 ## Portée future ordonnée
 
-1. connecter l'ASR existant à une API versionnée et sécurisée ;
+1. connecter l'ASR existant à une API versionnée et sécurisée ; **terminé pour
+   l'upload local éphémère** ;
 2. ajouter un fournisseur de traduction derrière l'abstraction et l'évaluer
    pour chaque paire ;
 3. faire valider le premier cours et ses médias par des experts linguistiques ;
@@ -640,3 +643,26 @@ La Foundation ne comprend pas :
 - aucune requête de la Foundation ne peut atteindre le final holdout ;
 - les validations Python et frontend sont exécutées avant revue ;
 - la documentation distingue clairement Legacy Demo UI et New Web Platform.
+
+## Extension Phase 2A — transcription web locale
+
+La page `/transcribe` est promue de `coming_soon` à `experimental` lorsque les
+endpoints de découverte et de transcription sont disponibles. Le navigateur
+obtient les compatibilités modèle/langue depuis FastAPI, envoie un seul audio
+explicitement fourni et affiche uniquement le résultat de cette requête.
+
+Critères additionnels :
+
+- WAV, MP3, FLAC et OGG seulement, 25 Mio et 30 secondes maximum ;
+- `fr`, `en` et `dyu`, avec modèle final exclusivement compatible `dyu` ;
+- option automatique et microphone désactivés tant qu'ils ne sont pas validés ;
+- audio temporaire supprimé immédiatement et jamais réutilisé pour entraîner ;
+- erreurs, journaux et exports sans chemin, nom original, checkpoint ou donnée
+  participant ;
+- un seul modèle chargé à la fois par processus ;
+- copie et téléchargements TXT/JSON locaux, à champs explicitement autorisés ;
+- traduction toujours `coming_soon`, sans texte simulé ;
+- aucun accès aux corpus, manifests, prédictions privées ou final holdout.
+
+Le contrat technique et les limites d'exploitation sont détaillés dans
+[l'intégration ASR web](../asr-web-integration.md).

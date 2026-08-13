@@ -8,10 +8,11 @@ pipeline, Whisper baselines, a full Dioula Whisper Tiny adaptation, ASR metrics
 and privacy-aware exports. The project is a research MVP, not an
 industrial-ready transcription service.
 
-An isolated Phase 2 web foundation is being introduced under `web/` for the
-future IvoireVoice language platform. It coexists with the local Gradio demo
-and does not imply that transcription, translation, learning content,
-authentication or persistence are already connected in the new surface.
+An isolated Phase 2 web platform lives under `web/` and coexists with the local
+Gradio demo. Its transcription page is connected to a versioned local FastAPI
+adapter and the existing ASR service. Translation, learning content,
+authentication and persistence remain unavailable or explicitly
+`coming_soon`.
 
 > **Résumé en français —** IvoireVoice AI est un démonstrateur local de
 > transcription français–dioula. Il compare Whisper Tiny, Whisper Small et un
@@ -43,7 +44,7 @@ keeping:
 
 ## MVP features
 
-- upload or record WAV, MP3, M4A or OGG audio;
+- upload WAV, MP3, FLAC or OGG audio;
 - sequential comparison of three ASR configurations;
 - optional reference-aware WER and CER;
 - substitutions, insertions and deletions;
@@ -64,19 +65,21 @@ and remains available while the web platform is developed.
 
 ### New Web Platform
 
-The `web/` application is a separate Next.js/TypeScript presentation layer. Its
-Foundation scope is navigation, responsive and accessible components,
-externalized French/English interface messages, a central language registry
-using canonical `dyu`, and a typed API-client boundary.
+The `web/` application is a separate Next.js/TypeScript presentation layer. It
+provides navigation, responsive and accessible components, externalized
+French/English interface messages, a central language registry using canonical
+`dyu`, and a typed API-client boundary. `/transcribe` now uses runtime
+model/language discovery and a protected temporary-upload flow.
 
 The browser never loads a model and the web bundle never reads a checkpoint,
-corpus, manifest or private artifact. Before explicit backend integration,
-unsupported ASR, translation, learning, pronunciation, account and community
-flows remain visibly `coming_soon`; no placeholder produces a simulated result.
+corpus, manifest or private artifact. ASR remains labelled `experimental`;
+translation, learning, pronunciation, account and community flows remain
+visibly `coming_soon`, and no placeholder produces a simulated result.
 
 See the [Phase 2 architecture](docs/phase2_architecture.md),
-[platform product contract](docs/product-specs/language-learning-platform.md)
-and [design system](docs/design-system.md).
+[platform product contract](docs/product-specs/language-learning-platform.md),
+[ASR web integration](docs/asr-web-integration.md) and
+[design system](docs/design-system.md).
 
 ## Models actually used
 
@@ -93,18 +96,16 @@ Model usage remains subject to each upstream model and library license.
 ## Architecture
 
 ```text
-Gradio
-  |
-ComparisonService  -- isolates failures and preserves partial results
-  |
-TranscriptionService -- validates audio and runs one model at a time
-  |
-ModelRegistry -- lazy factories configured in YAML
-  |
-WhisperBackend -- load / transcribe / unload
-  |
-EvaluationService ---- WER, CER and edit counts
-ExportService -------- JSON, CSV, TXT and temporary previews
+Gradio -> ComparisonService ----+
+                                |
+Browser -> Next.js -> FastAPI --+-> TranscriptionService
+                                         |
+                                  ModelRegistry
+                                         |
+                                  WhisperBackend
+                                  load / transcribe / unload
+
+Gradio also uses EvaluationService and ExportService for comparisons.
 ```
 
 The adapted checkpoint path is resolved only at runtime. No private model path
@@ -407,15 +408,32 @@ training, refit or final-holdout evaluation.
 make api
 ```
 
-The FastAPI adapter exposes `GET /health`, `GET /models` and
-`POST /transcribe`. Its transcription route currently uses the explicit
-`DummyBackend`; real Whisper comparison is implemented in the Gradio service
-path.
+The FastAPI adapter keeps `GET /health`, `GET /models` and `POST /transcribe`
+as legacy DummyBackend routes. The web platform uses the separate versioned
+contracts `GET /api/health`, `GET /api/v1/languages`, `GET /api/v1/models` and
+`POST /api/v1/transcriptions`, which reuse the real configured
+`TranscriptionService`.
 
-The Phase 2 web client is contract-only at this stage. It must not be presented
-as connected to the real ASR backend, and no translation provider is currently
-implemented. Versioned `/api/v1` routes will be added incrementally alongside
-the legacy endpoints rather than inferred from the presence of frontend pages.
+Uploads are limited to 25 Mio and 30 seconds, validated by extension, MIME,
+binary signature and SoundFile decoding, stored under a random temporary name
+and removed immediately. Inference is serialized and lazy, then the backend is
+unloaded. No translation provider is implemented.
+
+Run the local services in separate terminals:
+
+```bash
+make api
+make web
+```
+
+Supply model/cache paths only through environment variables. Both servers bind
+to loopback by default; public exposure is not authorized.
+
+`make web-asr-smoke` est un contrôle réel optionnel et gardé. Il exige des
+audios parlés français/anglais synthétiques ou externes explicitement autorisés
+et refuse les racines du dépôt, du corpus, des artefacts et des checkpoints.
+Sans ces actifs, les tests hors ligne valident le contrat mais ne prétendent pas
+valider la qualité linguistique.
 
 ## Tests
 
@@ -483,9 +501,12 @@ source-data governance decision.
 - the final holdout contains only 3 speaker groups;
 - no result guarantees equivalent production performance;
 - French evaluation has not yet been completed;
-- the real ASR backend is not connected to the FastAPI route;
-- the Phase 2 web foundation is not yet connected to real ASR, translation,
-  authentication, a database or object storage;
+- the Phase 2 web platform connects real ASR locally, but has no published
+  French or English quality benchmark;
+- translation, authentication, a database and object storage are not
+  connected;
+- the web runtime has no authentication, rate limiting or public-upload abuse
+  controls and must remain local;
 - the Gradio interface is local and has no public authentication layer;
 - checkpoint and corpus redistribution are not authorized.
 
