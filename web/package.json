@@ -1,0 +1,43 @@
+{
+  "name": "ivoirevoice-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.19.0"
+  },
+  "scripts": {
+    "dev": "NEXT_TELEMETRY_DISABLED=1 next dev --hostname 127.0.0.1",
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build --webpack",
+    "start": "NEXT_TELEMETRY_DISABLED=1 next start --hostname 127.0.0.1",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "audit": "npm audit --audit-level=high",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"*.{json,ts,mjs,md}\"",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run audit && npm run build"
+  },
+  "dependencies": {
+    "next": "16.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.1.18",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.0",
+    "axe-core": "4.13.0",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.1",
+    "eslint-config-next": "16.3.0",
+    "jsdom": "27.2.0",
+    "postcss": "8.5.26",
+    "prettier": "3.7.4",
+    "tailwindcss": "4.1.18",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}
