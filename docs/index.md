@@ -8,7 +8,13 @@ needed for a task.
 
 - [MVP product contract](product-specs/mvp.md): supported user journeys,
   non-goals and acceptance criteria.
+- [Language-learning platform product contract](product-specs/language-learning-platform.md):
+  Phase 2 personas, journeys, honest capability states and textual wireframes.
 - [Architecture](architecture.md): packages, runtime flows and boundaries.
+- [Phase 2 architecture](phase2_architecture.md): target web, API, service,
+  persistence and migration boundaries.
+- [Design system](design-system.md): accessible visual and interaction rules
+  for the new web platform.
 - [Core engineering beliefs](design-docs/core-beliefs.md): durable design
   choices that guide implementation.
 - [Experiment protocol](experiment_protocol.md): comparable datasets,
@@ -29,6 +35,8 @@ needed for a task.
 - [Quality score](QUALITY.md): evidence-based domain scorecard.
 - [Technical debt](technical-debt.md): explicit, prioritized follow-up work.
 - [Execution plans](exec-plans/README.md): format for non-trivial changes.
+- [Phase 2 Foundation execution plan](exec-plans/completed/language-learning-platform-foundation.md):
+  implementation scope, decisions and validation evidence for the new web shell.
 
 ## Machine-readable navigation
 

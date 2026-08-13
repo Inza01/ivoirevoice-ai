@@ -27,6 +27,50 @@ La configuration principale vient de `configs/project.yaml`. Les variables
 configurations de données, modèles et expériences ne déclenchent aucun
 téléchargement.
 
+## Coexistence avec la plateforme web Phase 2
+
+La Phase 2 ajoute progressivement une surface produit distincte sous `web/`.
+Cette fondation Next.js ne remplace pas l'interface Gradio et ne constitue pas
+une nouvelle implémentation ML :
+
+```text
+Legacy Demo UI                         New Web Platform
+Gradio                                 Browser
+   |                                      |
+ComparisonService                       Next.js
+   |                                      |
+TranscriptionService                 typed API client
+   |                                      |
+ModelRegistry                         FastAPI /api/v1
+   |                                      |
+ASRBackend                         application services
+   |                                      |
+local frozen model                ASR / translation / learning ports
+```
+
+Le chemin de gauche reste la seule interface reliée au modèle Dioula final au
+début de la Phase 2. Le chemin de droite fournit d'abord le design system, la
+navigation, les contrats et des états honnêtes `coming_soon`. Il ne devient
+`experimental` ou `available` qu'après raccordement, tests et garde-fous du
+service concerné.
+
+Frontières obligatoires :
+
+- le navigateur et Next.js ne chargent jamais PyTorch, Transformers ou un
+  checkpoint ;
+- le frontend ne lit jamais le corpus, un manifeste ou un artefact privé ;
+- FastAPI orchestre les services applicatifs et ne contient pas de logique ML ;
+- aucune route Phase 2 n'importe `training/` ou une voie final-holdout ;
+- uploads utilisateur et données ML utilisent des espaces de stockage séparés ;
+- la traduction dépend d'un futur `TranslationProvider` explicite et ne doit
+  jamais être simulée ;
+- le code Dioula canonique reste `dyu` dans les contrats techniques.
+
+L'architecture cible, le contrat produit et les règles visuelles sont détaillés
+respectivement dans [l'architecture Phase 2](phase2_architecture.md), le
+[contrat de plateforme](product-specs/language-learning-platform.md) et le
+[design system](design-system.md).
+
 ## Pipeline dioula
 
 ```text
@@ -176,6 +220,8 @@ l'interface loopback et le partage public Gradio est explicitement désactivé.
 - `evaluation/` : sélections, métriques, diagnostics et comparaisons ;
 - `services/` : orchestration, métriques applicatives et exports ;
 - `api/` et `ui/` : adaptateurs d'entrée, sans logique ML spécifique.
+- `web/` : présentation Next.js isolée, dépendant uniquement de contrats HTTP
+  typés et jamais du package Python ou d'un artefact ML.
 
 Le stockage des données, checkpoints et sorties reste hors Git.
 
@@ -223,6 +269,13 @@ training   -> data, evaluation, exceptions, models
 services   -> data, evaluation, exceptions, models
 ui         -> exceptions, services
 ```
+
+`web/` ne participe pas au graphe d'imports Python. Ses dépendances, tests et
+gates restent isolés, tandis que ses contrats réseau doivent correspondre aux
+schémas publics FastAPI. Ajouter un domaine Python pour la traduction,
+l'apprentissage ou le stockage exige de documenter puis d'ajouter sa direction
+au harness ; placer arbitrairement cette logique dans `api/` n'est pas une
+solution de contournement.
 
 Les imports internes à un domaine restent libres. Une nouvelle direction
 nécessite une décision dans un plan d'exécution, une mise à jour de cette
