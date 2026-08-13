@@ -54,8 +54,18 @@ describe("message catalogs", () => {
   it("does not claim that coming-soon capabilities are available", () => {
     expect(getMessages("fr").status.coming_soon).not.toBe(getMessages("fr").status.available);
     expect(getMessages("en").status.coming_soon).toBe("Coming soon");
-    expect(getMessages("fr").transcribe.integrationNotice).toContain("pas encore");
+    expect(getMessages("fr").transcribe.integrationNotice).toContain("expérimentale");
     expect(getMessages("en").translate.comingSoonNotice).toContain("No translation engine");
+  });
+
+  it("documents the bounded public upload policy in both locales", () => {
+    expect(getMessages("fr").uploader.formats).toContain("WAV, FLAC, OGG ou MP3");
+    expect(getMessages("fr").uploader.formats).toContain("30 secondes");
+    expect(getMessages("en").uploader.formats).toContain("25 MB");
+    expect(getMessages("en").transcribe.discoveryError).toBeTruthy();
+    expect(getMessages("fr").errors.incompatibleModelLanguage).toBeTruthy();
+    expect(getMessages("fr").uploader.microphoneUnavailable).toContain("phase dédiée");
+    expect(getMessages("en").uploader.microphoneUnavailable).toContain("dedicated phase");
   });
 
   it("keeps learning content and pronunciation limitations explicit", () => {

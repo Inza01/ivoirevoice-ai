@@ -25,9 +25,9 @@ describe("language registry", () => {
     expect(getLanguageName("dyu", "fr")).toBe("Dioula");
   });
 
-  it("does not advertise ASR as integrated before the backend migration", () => {
+  it("labels the real local ASR workflow as experimental", () => {
     for (const language of Object.values(LANGUAGE_REGISTRY)) {
-      expect(language.asr).toBe("coming_soon");
+      expect(language.asr).toBe("experimental");
     }
   });
 

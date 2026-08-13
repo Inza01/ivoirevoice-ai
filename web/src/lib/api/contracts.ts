@@ -1,13 +1,10 @@
 import type { CapabilityStatus, LanguageCode } from "@/lib/languages/registry";
 
-export type ServiceStatus = "ok" | "degraded" | "unavailable";
 export type TranscriptionStatus = "queued" | "processing" | "completed" | "failed";
 export type TranslationStatus = "queued" | "processing" | "completed" | "failed";
 
 export interface HealthResponse {
-  readonly status: ServiceStatus;
-  readonly service: string;
-  readonly version: string;
+  readonly status: "ok";
 }
 
 export interface PublicModel {
@@ -23,6 +20,7 @@ export interface ModelsResponse {
 
 export interface PublicLanguage {
   readonly code: LanguageCode;
+  readonly name: string;
   readonly asr: CapabilityStatus;
   readonly learning: CapabilityStatus;
   readonly translation_targets: Readonly<Partial<Record<LanguageCode, CapabilityStatus>>>;
@@ -57,6 +55,7 @@ export interface CreateTranscriptionInput {
   readonly filename: string;
   readonly language: LanguageCode;
   readonly modelId?: string;
+  readonly signal?: AbortSignal;
 }
 
 export interface CreateTranslationInput {

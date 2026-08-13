@@ -7,7 +7,7 @@ describe("IvoireVoiceApiClient", () => {
     let requestedUrl = "";
     const client = new IvoireVoiceApiClient(async (input) => {
       requestedUrl = String(input);
-      return new Response(JSON.stringify({ status: "ok", service: "test", version: "1" }), {
+      return new Response(JSON.stringify({ status: "ok" }), {
         headers: { "Content-Type": "application/json" },
       });
     });
@@ -18,6 +18,7 @@ describe("IvoireVoiceApiClient", () => {
 
   it("builds an audio request without setting an invalid multipart content type", async () => {
     let requestInit: RequestInit | undefined;
+    const controller = new AbortController();
     const client = new IvoireVoiceApiClient(async (_input, init) => {
       requestInit = init;
       return new Response(
@@ -30,11 +31,38 @@ describe("IvoireVoiceApiClient", () => {
       audio: new Blob(["synthetic"], { type: "audio/wav" }),
       filename: "demo.wav",
       language: "dyu",
+      modelId: "whisper_tiny_dioula_final",
+      signal: controller.signal,
     });
 
     expect(requestInit?.method).toBe("POST");
     expect(requestInit?.body).toBeInstanceOf(FormData);
     expect(new Headers(requestInit?.headers).has("Content-Type")).toBe(false);
+    expect(requestInit?.signal).toBe(controller.signal);
+    const form = requestInit?.body as FormData;
+    expect(form.get("language")).toBe("dyu");
+    expect(form.get("model")).toBe("whisper_tiny_dioula_final");
+  });
+
+  it("preserves only a reviewed backend error code", async () => {
+    const privateMessage = "failed at /private-data/model.bin";
+    const client = new IvoireVoiceApiClient(async () =>
+      Response.json(
+        { error: { code: "model_unavailable", message: privateMessage } },
+        { status: 503 },
+      ),
+    );
+
+    let observed: unknown;
+    try {
+      await client.listModels();
+    } catch (error) {
+      observed = error;
+    }
+
+    expect(observed).toMatchObject({ code: "model_unavailable", retryable: true, status: 503 });
+    expect(String(observed)).not.toContain(privateMessage);
+    expect(String(observed)).not.toContain("/private-data/");
   });
 
   it("never exposes a backend message or private path", async () => {
@@ -154,7 +182,7 @@ describe("IvoireVoiceApiClient", () => {
     let requestedUrl = "";
     const client = new IvoireVoiceApiClient(async (input) => {
       requestedUrl = String(input);
-      return new Response(JSON.stringify({ status: "ok", service: "test", version: "1" }), {
+      return new Response(JSON.stringify({ status: "ok" }), {
         headers: { "Content-Type": "application/json" },
       });
     }, "/api/backend/");
@@ -223,6 +251,7 @@ describe("IvoireVoiceApiClient", () => {
         languages: [
           {
             code: "dyu",
+            name: "Dioula",
             asr: "experimental",
             learning: "coming_soon",
             translation_targets: { fr: "coming_soon" },
@@ -243,5 +272,25 @@ describe("IvoireVoiceApiClient", () => {
     await expect(client.listLanguages()).resolves.toMatchObject({
       languages: [{ code: "dyu" }],
     });
+  });
+
+  it("requires public metrics and text on a completed transcription", async () => {
+    const client = new IvoireVoiceApiClient(async () =>
+      Response.json({
+        id: "request_1",
+        status: "completed",
+        language: "dyu",
+        model_id: "whisper_tiny_dioula_final",
+      }),
+    );
+
+    await expect(
+      client.createTranscription({
+        audio: new Blob(["synthetic"], { type: "audio/wav" }),
+        filename: "audio-upload.wav",
+        language: "dyu",
+        modelId: "whisper_tiny_dioula_final",
+      }),
+    ).rejects.toMatchObject({ code: "unexpected_response" });
   });
 });

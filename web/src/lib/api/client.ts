@@ -21,13 +21,31 @@ type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Respo
 type ResponseValidator<T> = (value: unknown) => value is T;
 
 export type PublicErrorCode =
+  | "incompatible_model_language"
   | "invalid_request"
+  | "model_unavailable"
   | "network_error"
   | "not_found"
   | "payload_too_large"
   | "service_unavailable"
+  | "transcription_failed"
+  | "unknown_language"
+  | "unknown_model"
   | "unsupported_audio"
   | "unexpected_response";
+
+const FORWARDED_ERROR_CODES = new Set<PublicErrorCode>([
+  "incompatible_model_language",
+  "invalid_request",
+  "model_unavailable",
+  "not_found",
+  "payload_too_large",
+  "service_unavailable",
+  "transcription_failed",
+  "unknown_language",
+  "unknown_model",
+  "unsupported_audio",
+]);
 
 export class ApiClientError extends Error {
   readonly code: PublicErrorCode;
@@ -68,7 +86,11 @@ function validateBasePath(basePath: string): string {
   return normalized;
 }
 
-function statusError(status: number): ApiClientError {
+function statusError(status: number, backendCode: string | null): ApiClientError {
+  if (backendCode && FORWARDED_ERROR_CODES.has(backendCode as PublicErrorCode)) {
+    const code = backendCode as PublicErrorCode;
+    return new ApiClientError(code, status, code === "model_unavailable" || status >= 500);
+  }
   if (status === 400 || status === 422) {
     return new ApiClientError("invalid_request", status, false);
   }
@@ -120,11 +142,7 @@ function isLanguageCodeArray(value: unknown): value is readonly LanguageCode[] {
 
 function isHealthResponse(value: unknown): value is HealthResponse {
   if (!isRecord(value)) return false;
-  return (
-    (value.status === "ok" || value.status === "degraded" || value.status === "unavailable") &&
-    isNonEmptyString(value.service) &&
-    isNonEmptyString(value.version)
-  );
+  return value.status === "ok";
 }
 
 function isModelsResponse(value: unknown): value is ModelsResponse {
@@ -154,6 +172,7 @@ function isLanguagesResponse(value: unknown): value is LanguagesResponse {
     (language: unknown) =>
       isRecord(language) &&
       isLanguageCode(String(language.code)) &&
+      isNonEmptyString(language.name) &&
       isCapabilityStatus(language.asr) &&
       isCapabilityStatus(language.learning) &&
       isTranslationTargets(language.translation_targets),
@@ -162,18 +181,30 @@ function isLanguagesResponse(value: unknown): value is LanguagesResponse {
 
 function isTranscriptionResponse(value: unknown): value is TranscriptionResponse {
   if (!isRecord(value)) return false;
-  return (
+  const status = String(value.status);
+  const baseIsValid =
     isNonEmptyString(value.id) &&
-    ["queued", "processing", "completed", "failed"].includes(String(value.status)) &&
+    /^[A-Za-z0-9_-]{1,128}$/.test(value.id) &&
+    ["queued", "processing", "completed", "failed"].includes(status) &&
     isLanguageCode(String(value.language)) &&
     isNonEmptyString(value.model_id) &&
+    /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(value.model_id) &&
     isOptionalString(value.text) &&
     (value.detected_language === undefined || isLanguageCode(String(value.detected_language))) &&
     isOptionalNonNegativeNumber(value.audio_duration_seconds) &&
     isOptionalNonNegativeNumber(value.processing_time_seconds) &&
     isOptionalNonNegativeNumber(value.rtf) &&
-    isOptionalString(value.expires_at)
-  );
+    isOptionalString(value.expires_at);
+  if (!baseIsValid) return false;
+  if (status === "completed") {
+    return (
+      typeof value.text === "string" &&
+      typeof value.audio_duration_seconds === "number" &&
+      value.audio_duration_seconds > 0 &&
+      typeof value.processing_time_seconds === "number"
+    );
+  }
+  return true;
 }
 
 function isTranslationResponse(value: unknown): value is TranslationResponse {
@@ -228,8 +259,8 @@ export class IvoireVoiceApiClient {
     if (!response.ok) {
       // Consume only the machine-readable code. Backend messages may contain
       // sensitive implementation details and are never surfaced by this client.
-      await readErrorCode(response);
-      throw statusError(response.status);
+      const backendCode = await readErrorCode(response);
+      throw statusError(response.status, backendCode);
     }
 
     try {
@@ -247,12 +278,12 @@ export class IvoireVoiceApiClient {
     return this.#request<HealthResponse>("/api/health", isHealthResponse);
   }
 
-  listModels(): Promise<ModelsResponse> {
-    return this.#request<ModelsResponse>("/api/v1/models", isModelsResponse);
+  listModels(signal?: AbortSignal): Promise<ModelsResponse> {
+    return this.#request<ModelsResponse>("/api/v1/models", isModelsResponse, { signal });
   }
 
-  listLanguages(): Promise<LanguagesResponse> {
-    return this.#request<LanguagesResponse>("/api/v1/languages", isLanguagesResponse);
+  listLanguages(signal?: AbortSignal): Promise<LanguagesResponse> {
+    return this.#request<LanguagesResponse>("/api/v1/languages", isLanguagesResponse, { signal });
   }
 
   createTranscription(input: CreateTranscriptionInput): Promise<TranscriptionResponse> {
@@ -265,6 +296,7 @@ export class IvoireVoiceApiClient {
     return this.#request<TranscriptionResponse>("/api/v1/transcriptions", isTranscriptionResponse, {
       method: "POST",
       body: form,
+      signal: input.signal,
     });
   }
 

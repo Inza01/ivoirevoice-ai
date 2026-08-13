@@ -19,18 +19,18 @@ export interface LanguageDefinition {
 }
 
 /**
- * Product capabilities exposed by the Phase 2 web foundation.
+ * Product capabilities exposed by the Phase 2 web platform.
  *
- * The frozen Dioula model exists locally, but it is not connected to the new
- * web platform yet. ASR therefore remains `coming_soon` here. A capability is
- * promoted only when its end-to-end service and safeguards are implemented.
+ * ASR is a real local workflow, but remains experimental: French and English
+ * have no product benchmark and Dioula evidence is limited to the documented
+ * corpus. Runtime model availability always comes from the discovery API.
  */
 export const LANGUAGE_REGISTRY: Readonly<Record<LanguageCode, LanguageDefinition>> = {
   fr: {
     code: "fr",
     name: { fr: "Français", en: "French" },
     interface: "available",
-    asr: "coming_soon",
+    asr: "experimental",
     learning: "coming_soon",
     translationTargets: {
       en: "coming_soon",
@@ -41,7 +41,7 @@ export const LANGUAGE_REGISTRY: Readonly<Record<LanguageCode, LanguageDefinition
     code: "en",
     name: { fr: "Anglais", en: "English" },
     interface: "available",
-    asr: "coming_soon",
+    asr: "experimental",
     learning: "coming_soon",
     translationTargets: {
       fr: "coming_soon",
@@ -52,7 +52,7 @@ export const LANGUAGE_REGISTRY: Readonly<Record<LanguageCode, LanguageDefinition
     code: "dyu",
     name: { fr: "Dioula", en: "Dioula" },
     interface: "coming_soon",
-    asr: "coming_soon",
+    asr: "experimental",
     learning: "coming_soon",
     translationTargets: {
       fr: "coming_soon",

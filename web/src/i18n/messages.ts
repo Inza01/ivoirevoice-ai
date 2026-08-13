@@ -49,6 +49,12 @@ export interface MessageCatalog {
     readonly unavailable: string;
     readonly invalidFile: string;
     readonly fileTooLarge: string;
+    readonly incompatibleModelLanguage: string;
+    readonly modelUnavailable: string;
+    readonly transcriptionFailed: string;
+    readonly unknownLanguage: string;
+    readonly unknownModel: string;
+    readonly copyFailed: string;
     readonly microphoneDenied: string;
   };
   readonly footer: {
@@ -64,6 +70,7 @@ export interface MessageCatalog {
   readonly uploader: {
     readonly title: string;
     readonly description: string;
+    readonly dropActive: string;
     readonly formats: string;
     readonly chooseFile: string;
     readonly selectedFile: string;
@@ -77,8 +84,10 @@ export interface MessageCatalog {
     readonly sourceLanguage: string;
     readonly targetLanguage: string;
     readonly audioLanguage: string;
+    readonly audioModel: string;
     readonly interfaceLanguage: string;
     readonly chooseLanguage: string;
+    readonly chooseModel: string;
     readonly textToTranslate: string;
     readonly translationResult: string;
     readonly required: string;
@@ -114,10 +123,18 @@ export interface MessageCatalog {
     readonly title: string;
     readonly description: string;
     readonly integrationNotice: string;
+    readonly discoveryLoading: string;
+    readonly discoveryError: string;
     readonly action: string;
     readonly resultTitle: string;
     readonly resultEmptyTitle: string;
     readonly resultEmptyDescription: string;
+    readonly readyTitle: string;
+    readonly readyDescription: string;
+    readonly processingTitle: string;
+    readonly processingDescription: string;
+    readonly successTitle: string;
+    readonly copySuccess: string;
     readonly translateAction: string;
     readonly downloadTxt: string;
     readonly downloadJson: string;
@@ -320,6 +337,12 @@ export const MESSAGES: Readonly<Record<UiLocale, MessageCatalog>> = {
       unavailable: "Le service est temporairement indisponible.",
       invalidFile: "Ce fichier n'est pas un audio valide.",
       fileTooLarge: "Le fichier dépasse la taille autorisée.",
+      incompatibleModelLanguage: "La langue choisie n'est pas compatible avec ce modèle.",
+      modelUnavailable: "Le modèle sélectionné est momentanément indisponible.",
+      transcriptionFailed: "La transcription est impossible pour le moment.",
+      unknownLanguage: "La langue choisie n'est pas reconnue par le service.",
+      unknownModel: "Le modèle choisi n'est pas reconnu par le service.",
+      copyFailed: "Impossible de copier le texte. Sélectionnez-le manuellement.",
       microphoneDenied: "L'accès au microphone a été refusé.",
     },
     footer: {
@@ -334,22 +357,26 @@ export const MESSAGES: Readonly<Record<UiLocale, MessageCatalog>> = {
     },
     uploader: {
       title: "Importer un audio",
-      description: "Choisissez un fichier audio sur votre appareil.",
-      formats: "WAV, MP3, M4A ou OGG — 25 Mo maximum",
+      description: "Glissez-déposez un fichier audio ici ou choisissez-le sur votre appareil.",
+      dropActive: "Déposez le fichier audio.",
+      formats: "WAV, FLAC, OGG ou MP3 — 25 Mo et 30 secondes maximum",
       chooseFile: "Choisir un fichier",
       selectedFile: "Fichier sélectionné",
       microphoneTitle: "Enregistrer avec le microphone",
       microphoneDescription: "Créez un nouvel enregistrement depuis cet appareil.",
       record: "Commencer l'enregistrement",
-      microphoneUnavailable: "L'enregistrement sera raccordé lors de l'intégration ASR.",
-      privacyNotice: "Aucun audio n'est conservé ou réutilisé pour entraîner par défaut.",
+      microphoneUnavailable: "L'enregistrement sera étudié dans une phase dédiée.",
+      privacyNotice:
+        "L'audio est traité temporairement, sans stockage permanent ni utilisation pour l'entraînement.",
     },
     forms: {
       sourceLanguage: "Langue source",
       targetLanguage: "Langue cible",
       audioLanguage: "Langue de l'audio",
+      audioModel: "Modèle de transcription",
       interfaceLanguage: "Langue de l'interface",
       chooseLanguage: "Choisir une langue",
+      chooseModel: "Choisir un modèle",
       textToTranslate: "Texte à traduire",
       translationResult: "Résultat traduit",
       required: "Obligatoire",
@@ -385,16 +412,25 @@ export const MESSAGES: Readonly<Record<UiLocale, MessageCatalog>> = {
     transcribe: {
       eyebrow: "Audio vers texte",
       title: "Transcrire un audio",
-      description: "Importez un audio ou préparez un enregistrement depuis le microphone.",
-      integrationNotice: "L'ASR n'est pas encore raccordé à la nouvelle plateforme web.",
+      description: "Importez un fichier audio autorisé pour obtenir une transcription.",
+      integrationNotice:
+        "La transcription locale est expérimentale. Les résultats peuvent contenir des erreurs.",
+      discoveryLoading: "Chargement des langues et modèles disponibles.",
+      discoveryError: "Impossible de charger les capacités du service de transcription.",
       action: "Transcrire",
       resultTitle: "Transcription",
       resultEmptyTitle: "Votre transcription apparaîtra ici",
       resultEmptyDescription: "Aucun audio n'a encore été envoyé au service.",
+      readyTitle: "Audio prêt",
+      readyDescription: "Choisissez une langue et un modèle, puis lancez la transcription.",
+      processingTitle: "Transcription en cours",
+      processingDescription: "Le fichier est traité temporairement. Ne fermez pas cette page.",
+      successTitle: "Transcription terminée",
+      copySuccess: "Texte copié.",
       translateAction: "Traduire cette transcription",
       downloadTxt: "Télécharger TXT",
       downloadJson: "Télécharger JSON",
-      deleteNotice: "L'audio temporaire sera supprimé selon la politique annoncée.",
+      deleteNotice: "L'audio temporaire est supprimé automatiquement après le traitement.",
     },
     translate: {
       eyebrow: "Texte vers texte",
@@ -594,6 +630,12 @@ export const MESSAGES: Readonly<Record<UiLocale, MessageCatalog>> = {
       unavailable: "The service is temporarily unavailable.",
       invalidFile: "This file is not valid audio.",
       fileTooLarge: "The file exceeds the allowed size.",
+      incompatibleModelLanguage: "The selected language is not compatible with this model.",
+      modelUnavailable: "The selected model is temporarily unavailable.",
+      transcriptionFailed: "Transcription is not possible right now.",
+      unknownLanguage: "The selected language is not recognized by the service.",
+      unknownModel: "The selected model is not recognized by the service.",
+      copyFailed: "The text could not be copied. Select it manually instead.",
       microphoneDenied: "Microphone access was denied.",
     },
     footer: {
@@ -608,22 +650,26 @@ export const MESSAGES: Readonly<Record<UiLocale, MessageCatalog>> = {
     },
     uploader: {
       title: "Upload audio",
-      description: "Choose an audio file from your device.",
-      formats: "WAV, MP3, M4A, or OGG — maximum 25 MB",
+      description: "Drag and drop an audio file here or choose one from your device.",
+      dropActive: "Drop the audio file.",
+      formats: "WAV, FLAC, OGG, or MP3 — maximum 25 MB and 30 seconds",
       chooseFile: "Choose a file",
       selectedFile: "Selected file",
       microphoneTitle: "Record with the microphone",
       microphoneDescription: "Create a new recording from this device.",
       record: "Start recording",
-      microphoneUnavailable: "Recording will be connected during ASR integration.",
-      privacyNotice: "Audio is not retained or reused for training by default.",
+      microphoneUnavailable: "Recording will be considered in a dedicated phase.",
+      privacyNotice:
+        "Uploaded audio is processed temporarily, with no permanent storage or use for training.",
     },
     forms: {
       sourceLanguage: "Source language",
       targetLanguage: "Target language",
       audioLanguage: "Audio language",
+      audioModel: "Transcription model",
       interfaceLanguage: "Interface language",
       chooseLanguage: "Choose a language",
+      chooseModel: "Choose a model",
       textToTranslate: "Text to translate",
       translationResult: "Translated result",
       required: "Required",
@@ -658,16 +704,24 @@ export const MESSAGES: Readonly<Record<UiLocale, MessageCatalog>> = {
     transcribe: {
       eyebrow: "Audio to text",
       title: "Transcribe audio",
-      description: "Upload audio or prepare a recording from your microphone.",
-      integrationNotice: "ASR is not connected to the new web platform yet.",
+      description: "Upload an authorized audio file to obtain a transcription.",
+      integrationNotice: "Local transcription is experimental. Results may contain errors.",
+      discoveryLoading: "Loading available languages and models.",
+      discoveryError: "The transcription service capabilities could not be loaded.",
       action: "Transcribe",
       resultTitle: "Transcription",
       resultEmptyTitle: "Your transcription will appear here",
       resultEmptyDescription: "No audio has been sent to the service yet.",
+      readyTitle: "Audio ready",
+      readyDescription: "Choose a language and model, then start transcription.",
+      processingTitle: "Transcription in progress",
+      processingDescription: "The file is being processed temporarily. Keep this page open.",
+      successTitle: "Transcription complete",
+      copySuccess: "Text copied.",
       translateAction: "Translate this transcription",
       downloadTxt: "Download TXT",
       downloadJson: "Download JSON",
-      deleteNotice: "Temporary audio will be deleted according to the stated policy.",
+      deleteNotice: "Temporary audio is automatically deleted after processing.",
     },
     translate: {
       eyebrow: "Text to text",

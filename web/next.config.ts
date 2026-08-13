@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The repository root already provides project-specific AGENTS.md rules.
+  // Prevent `next dev` from generating nested instruction files in the worktree.
+  agentRules: false,
   // Next 16 marks the API/CLI selector experimental. Explicit `false` keeps
   // the stable TypeScript compiler API and avoids detached child processes.
   experimental: {
