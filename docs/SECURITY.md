@@ -21,6 +21,10 @@ aggregates.
 4. UI and export services remove private paths.
 5. Publication checks reject forbidden paths, suffixes and credential
    patterns.
+6. The Phase 2 `web/` Foundation calls only a same-origin proxy contract; its
+   FastAPI origin is server-only and never exposed through `NEXT_PUBLIC_*`.
+7. The Foundation audio picker validates locally but does not upload, retain or
+   process audio until a separately reviewed API integration exists.
 
 ## Required controls
 
@@ -50,3 +54,8 @@ Require human review for changes to:
 
 The threat model assumes a trusted local operator. The MVP is not hardened for
 untrusted public uploads or internet-facing deployment.
+
+The presence of the new web shell does not change that threat model. Public
+deployment remains blocked until authentication, upload content sniffing,
+retention/deletion, explicit CORS, rate limiting and privacy-safe observability
+have been implemented and reviewed.

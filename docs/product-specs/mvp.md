@@ -6,6 +6,14 @@ IvoireVoice AI is a local research demonstrator for comparing French and
 Dioula automatic speech recognition. It makes the frozen Whisper Tiny Dioula
 adaptation inspectable without presenting it as an industrial model.
 
+This remains the contract for the **Legacy Demo UI**. The
+[Phase 2 language-learning platform](language-learning-platform.md) introduces
+a separate web product foundation without replacing this demonstrator or
+expanding its validated ML claims. Until a versioned FastAPI service is
+explicitly connected and tested, the new web surface must present ASR,
+translation and learning workflows as `coming_soon`, placeholders or design
+contracts as documented by their actual capability state.
+
 ## Supported journeys
 
 1. Upload or record a supported audio file in the local Gradio interface.
@@ -42,6 +50,10 @@ evidence on the observed corpus, not a production guarantee.
 - any second final-holdout evaluation or tuning after its result;
 - further training of the frozen final model;
 - authenticated production deployment;
+- treating a Phase 2 page or component as proof that its backend capability is
+  implemented;
+- direct model, checkpoint, corpus or private-artifact access from the new web
+  application;
 - claims about Wav2Vec2, XLS-R or MMS implementation;
 - universal robustness across accents, noise and recording conditions.
 

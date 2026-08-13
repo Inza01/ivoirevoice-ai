@@ -8,6 +8,11 @@ pipeline, Whisper baselines, a full Dioula Whisper Tiny adaptation, ASR metrics
 and privacy-aware exports. The project is a research MVP, not an
 industrial-ready transcription service.
 
+An isolated Phase 2 web foundation is being introduced under `web/` for the
+future IvoireVoice language platform. It coexists with the local Gradio demo
+and does not imply that transcription, translation, learning content,
+authentication or persistence are already connected in the new surface.
+
 > **Résumé en français —** IvoireVoice AI est un démonstrateur local de
 > transcription français–dioula. Il compare Whisper Tiny, Whisper Small et un
 > Whisper Tiny adapté sur des données dioula locales. Le corpus réel, les
@@ -48,6 +53,30 @@ keeping:
 - local error analysis backed by private artifacts;
 - FastAPI health and demonstration endpoints;
 - offline unit tests using `DummyBackend` or injected model doubles.
+
+## Application surfaces
+
+### Legacy Demo UI
+
+The Gradio application is the validated local ASR comparison surface. It can
+load the frozen Dioula model supplied at runtime, executes models sequentially
+and remains available while the web platform is developed.
+
+### New Web Platform
+
+The `web/` application is a separate Next.js/TypeScript presentation layer. Its
+Foundation scope is navigation, responsive and accessible components,
+externalized French/English interface messages, a central language registry
+using canonical `dyu`, and a typed API-client boundary.
+
+The browser never loads a model and the web bundle never reads a checkpoint,
+corpus, manifest or private artifact. Before explicit backend integration,
+unsupported ASR, translation, learning, pronunciation, account and community
+flows remain visibly `coming_soon`; no placeholder produces a simulated result.
+
+See the [Phase 2 architecture](docs/phase2_architecture.md),
+[platform product contract](docs/product-specs/language-learning-platform.md)
+and [design system](docs/design-system.md).
 
 ## Models actually used
 
@@ -235,6 +264,7 @@ These values must not be mixed with the 600-audio validation benchmark.
 │   ├── training/            # Smoke, pilot, full refit and sealed evaluation
 │   └── ui/                  # Gradio application
 ├── tests/                   # Offline unit and integration tests
+├── web/                     # Isolated Next.js Phase 2 Foundation
 ├── .env.example
 ├── Makefile
 └── pyproject.toml
@@ -382,6 +412,11 @@ The FastAPI adapter exposes `GET /health`, `GET /models` and
 `DummyBackend`; real Whisper comparison is implemented in the Gradio service
 path.
 
+The Phase 2 web client is contract-only at this stage. It must not be presented
+as connected to the real ASR backend, and no translation provider is currently
+implemented. Versioned `/api/v1` routes will be added incrementally alongside
+the legacy endpoints rather than inferred from the presence of frontend pages.
+
 ## Tests
 
 ```bash
@@ -449,6 +484,8 @@ source-data governance decision.
 - no result guarantees equivalent production performance;
 - French evaluation has not yet been completed;
 - the real ASR backend is not connected to the FastAPI route;
+- the Phase 2 web foundation is not yet connected to real ASR, translation,
+  authentication, a database or object storage;
 - the Gradio interface is local and has no public authentication layer;
 - checkpoint and corpus redistribution are not authorized.
 

@@ -91,3 +91,12 @@ Thumbs.db
 
 # Notebooks
 .ipynb_checkpoints/
+
+# Frontend dependencies, local configuration and build/test outputs
+/web/node_modules/
+/web/.next/
+/web/out/
+/web/coverage/
+/web/*.tsbuildinfo
+/web/.env*
+!/web/.env.example

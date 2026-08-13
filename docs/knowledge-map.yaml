@@ -4,7 +4,10 @@ entrypoints:
   agent: AGENTS.md
   documentation: docs/index.md
   product: docs/product-specs/mvp.md
+  phase2_product: docs/product-specs/language-learning-platform.md
   architecture: docs/architecture.md
+  phase2_architecture: docs/phase2_architecture.md
+  design_system: docs/design-system.md
   security: docs/SECURITY.md
   reliability: docs/RELIABILITY.md
   quality: docs/QUALITY.md
@@ -39,15 +42,21 @@ domains:
     source: src/ivoirevoice/ui
     tests: tests/unit/ui
     docs: docs/demo_guide.md
+  web:
+    source: web/src
+    tests: web/src/app/page.test.tsx
+    docs: docs/product-specs/language-learning-platform.md
 
 quality_gates:
   fast: make verify-fast
   harness: make harness-check
   full: make verify
+  web: make web-verify
 
 runtime_entrypoints:
   api: make api
   ui: make ui
+  web: make web-dev
   demo_preflight: make demo-preflight
   demo_smoke: make demo-smoke
   demo: make demo

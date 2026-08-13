@@ -22,9 +22,13 @@ PILOT_TRAINING_CONFIG := configs/experiments/pilot_finetune_whisper_tiny_dy.yaml
 FULL_TRAINING_CONFIG := configs/experiments/full_finetune_whisper_tiny_dy.yaml
 CONFIRM_FINAL_HOLDOUT ?= $(IVOIREVOICE_CONFIRM_FINAL_HOLDOUT)
 CONFIRM_DEVELOPMENT_SELECTION ?= $(IVOIREVOICE_CONFIRM_DEVELOPMENT_SELECTION)
+NPM ?= npm
+WEB_DIR ?= web
 
 .PHONY: setup install-dev lint format typecheck test compile audit-repository
 .PHONY: harness-check verify-fast verify
+.PHONY: web-install web-format-check web-lint web-typecheck web-test web-build
+.PHONY: web-verify web-dev
 .PHONY: api ui demo-preflight demo-smoke demo audit-dioula
 .PHONY: manifest-dioula curate-dioula compare-dioula-splits freeze-dioula-v01
 .PHONY: validate-dioula-v01 check-ml-environment inspect-baseline-models
@@ -76,6 +80,30 @@ verify-fast:
 
 verify: verify-fast
 	$(MAKE) test
+	$(MAKE) web-verify
+
+web-install:
+	$(NPM) ci --prefix $(WEB_DIR)
+
+web-format-check:
+	$(NPM) run format:check --prefix $(WEB_DIR)
+
+web-lint:
+	$(NPM) run lint --prefix $(WEB_DIR)
+
+web-typecheck:
+	$(NPM) run typecheck --prefix $(WEB_DIR)
+
+web-test:
+	$(NPM) run test --prefix $(WEB_DIR)
+
+web-build:
+	$(NPM) run build --prefix $(WEB_DIR)
+
+web-verify: web-format-check web-lint web-typecheck web-test web-build
+
+web-dev:
+	$(NPM) run dev --prefix $(WEB_DIR)
 
 api:
 	$(VENV_BIN)/uvicorn ivoirevoice.api.app:app --reload
