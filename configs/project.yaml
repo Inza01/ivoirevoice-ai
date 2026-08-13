@@ -4,19 +4,20 @@ project:
   default_language: fr
   supported_languages:
     - fr
+    - en
     - dyu
   default_model: dummy
 
 api:
   max_upload_size_mb: 25
+  audio_retention: delete_immediately
   allowed_content_types:
     - audio/flac
-    - audio/m4a
-    - audio/mp4
+    - audio/mp3
     - audio/mpeg
     - audio/ogg
     - audio/wav
-    - audio/webm
-    - audio/x-m4a
+    - audio/wave
+    - audio/x-flac
     - audio/x-wav
-
+    - application/ogg

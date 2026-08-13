@@ -35,6 +35,7 @@ class APISettings:
 
     max_upload_size_mb: int
     allowed_content_types: tuple[str, ...]
+    audio_retention: str
 
     @property
     def max_upload_size_bytes(self) -> int:
@@ -183,7 +184,12 @@ def _validate(data: ConfigMapping, source_path: Path) -> AppConfig:
     api = APISettings(
         max_upload_size_mb=max_upload_size_mb,
         allowed_content_types=_required_string_tuple(api_data, "allowed_content_types", "api"),
+        audio_retention=_required_string(api_data, "audio_retention", "api"),
     )
+    if api.audio_retention != "delete_immediately":
+        raise ConfigError(
+            "Le champ 'api.audio_retention' doit valoir delete_immediately pour ce MVP."
+        )
     return AppConfig(project=project, api=api, source_path=source_path)
 
 

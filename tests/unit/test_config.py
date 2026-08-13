@@ -17,6 +17,7 @@ project:
 api:
   max_upload_size_mb: 2
   allowed_content_types: [audio/wav]
+  audio_retention: delete_immediately
 """
 
 
@@ -31,6 +32,7 @@ def test_loads_valid_configuration(tmp_path: Path) -> None:
     assert config.project.name == "Test Voice"
     assert config.project.supported_languages == ("fr", "dyu")
     assert config.api.max_upload_size_bytes == 2 * 1024 * 1024
+    assert config.api.audio_retention == "delete_immediately"
 
 
 def test_environment_overrides_nested_values(
@@ -52,3 +54,10 @@ def test_rejects_default_language_outside_supported_list(tmp_path: Path) -> None
 
     with pytest.raises(ConfigError, match="default_language"):
         load_config(write_config(tmp_path / "invalid.yaml", invalid_config))
+
+
+def test_rejects_persistent_audio_retention(tmp_path: Path) -> None:
+    invalid_config = VALID_CONFIG.replace("delete_immediately", "keep_forever")
+
+    with pytest.raises(ConfigError, match="delete_immediately"):
+        load_config(write_config(tmp_path / "invalid-retention.yaml", invalid_config))

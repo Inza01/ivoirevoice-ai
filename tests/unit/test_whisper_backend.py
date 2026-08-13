@@ -29,7 +29,7 @@ def _settings(tmp_path: Path) -> WhisperSettings:
         local_files_only=True,
         max_new_tokens=128,
         expected_sampling_rate_hz=16_000,
-        supported_languages=("dyu",),
+        supported_languages=("dyu", "fr", "en"),
     )
 
 
@@ -75,6 +75,34 @@ def test_backend_requires_explicit_load(tmp_path: Path) -> None:
 
     with pytest.raises(BackendNotLoadedError):
         backend.transcribe(b"fake", "dyu")
+
+
+@pytest.mark.parametrize("language", ["fr", "en"])
+def test_backend_forces_supported_french_and_english_tokens(
+    tmp_path: Path,
+    language: str,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    class FakePipeline:
+        def __call__(self, _inputs: Any, **kwargs: Any) -> dict[str, str]:
+            calls.append(kwargs)
+            return {"text": "synthetic"}
+
+    backend = WhisperBackend(
+        _settings(tmp_path),
+        pipeline_factory=lambda _settings: FakePipeline(),
+        audio_loader=lambda _audio, _rate: ({"array": [0.0]}, 1.0),
+    )
+    backend.load()
+
+    backend.transcribe(b"fake", language)
+
+    assert calls[0]["generate_kwargs"] == {
+        "task": "transcribe",
+        "max_new_tokens": 128,
+        "language": language,
+    }
 
 
 def test_config_rejects_forced_dyu_language(

@@ -24,12 +24,14 @@ CONFIRM_FINAL_HOLDOUT ?= $(IVOIREVOICE_CONFIRM_FINAL_HOLDOUT)
 CONFIRM_DEVELOPMENT_SELECTION ?= $(IVOIREVOICE_CONFIRM_DEVELOPMENT_SELECTION)
 NPM ?= npm
 WEB_DIR ?= web
+API_HOST ?= 127.0.0.1
+API_PORT ?= 8000
 
 .PHONY: setup install-dev lint format typecheck test compile audit-repository
 .PHONY: harness-check verify-fast verify
 .PHONY: web-install web-format-check web-lint web-typecheck web-test web-build
-.PHONY: web-verify web-dev
-.PHONY: api ui demo-preflight demo-smoke demo audit-dioula
+.PHONY: web-verify web-dev web
+.PHONY: api web-asr-smoke ui demo-preflight demo-smoke demo audit-dioula
 .PHONY: manifest-dioula curate-dioula compare-dioula-splits freeze-dioula-v01
 .PHONY: validate-dioula-v01 check-ml-environment inspect-baseline-models
 .PHONY: baseline-dy-smoke baseline-dy-pilot baseline-dy-full compare-dy-baselines
@@ -105,8 +107,14 @@ web-verify: web-format-check web-lint web-typecheck web-test web-build
 web-dev:
 	$(NPM) run dev --prefix $(WEB_DIR)
 
+web: web-dev
+
 api:
-	$(VENV_BIN)/uvicorn ivoirevoice.api.app:app --reload
+	$(VENV_BIN)/uvicorn ivoirevoice.api.app:app --reload \
+		--host $(API_HOST) --port $(API_PORT)
+
+web-asr-smoke:
+	$(VENV_PYTHON) scripts/web_asr_smoke.py
 
 ui:
 	IVOIREVOICE_DIOULA_DATA_DIR="$(DIOULA_DATA_DIR)" \
