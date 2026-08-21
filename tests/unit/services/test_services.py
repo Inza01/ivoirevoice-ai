@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import csv
 import json
+import shutil
 import wave
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from time import sleep
 
+import numpy
 import pytest
+import soundfile
 
 from ivoirevoice.exceptions import ConfigError
 from ivoirevoice.models.base import ASRBackend, AudioInput, TranscriptionResult
@@ -56,7 +61,7 @@ def _catalog(*keys: str) -> ModelCatalog:
         models=tuple(_definition(key) for key in keys),
         max_audio_size_bytes=1024 * 1024,
         max_audio_duration_seconds=10.0,
-        allowed_extensions=(".wav", ".mp3", ".m4a", ".ogg"),
+        allowed_extensions=(".wav", ".mp3", ".flac", ".ogg"),
     )
 
 
@@ -181,6 +186,68 @@ def test_audio_extension_validation_rejects_unknown_format() -> None:
     assert service.validate_extension("sample.MP3") == ".mp3"
     with pytest.raises(ConfigError, match="Format audio refusé"):
         service.validate_extension("sample.exe")
+
+
+def test_audio_validation_rejects_container_mismatch_channels_and_non_finite_values(
+    tmp_path: Path,
+) -> None:
+    service = TranscriptionService(_catalog("tiny"), ModelRegistry())
+    wav_path = _wav(tmp_path / "sample.wav")
+    mismatched = tmp_path / "sample.mp3"
+    shutil.copyfile(wav_path, mismatched)
+    three_channels = tmp_path / "three-channels.wav"
+    soundfile.write(three_channels, numpy.zeros((1_600, 3), dtype=numpy.float32), 16_000)
+    non_finite = tmp_path / "non-finite.wav"
+    samples = numpy.zeros(1_600, dtype=numpy.float32)
+    samples[10] = numpy.nan
+    soundfile.write(non_finite, samples, 16_000, subtype="FLOAT")
+
+    with pytest.raises(ConfigError, match="conteneur"):
+        service.validate_audio(mismatched)
+    with pytest.raises(ConfigError, match="mono ou stéréo"):
+        service.validate_audio(three_channels)
+    with pytest.raises(ConfigError, match="non finies"):
+        service.validate_audio(non_finite)
+
+
+def test_transcription_service_serializes_backend_lifecycle(tmp_path: Path) -> None:
+    active = 0
+    maximum_active = 0
+
+    class ConcurrentBackend(DummyBackend):
+        def load(self) -> None:
+            nonlocal active, maximum_active
+            active += 1
+            maximum_active = max(maximum_active, active)
+            sleep(0.02)
+            super().load()
+
+        def unload(self) -> None:
+            nonlocal active
+            super().unload()
+            active -= 1
+
+    registry = ModelRegistry()
+    registry.register("tiny", ConcurrentBackend)
+    service = TranscriptionService(_catalog("tiny"), registry)
+    audio_path = _wav(tmp_path / "sample.wav")
+    metadata = service.validate_audio(audio_path)
+
+    def run() -> None:
+        service.transcribe(
+            model_key="tiny",
+            audio_path=audio_path,
+            language="fr",
+            audio_metadata=metadata,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(run) for _ in range(2)]
+        for future in futures:
+            future.result()
+
+    assert maximum_active == 1
+    assert active == 0
 
 
 def test_benchmark_loader_uses_structured_json(tmp_path: Path) -> None:

@@ -8,7 +8,10 @@ type SharedProps = {
 };
 
 type ButtonProps = SharedProps &
-  Pick<ButtonHTMLAttributes<HTMLButtonElement>, "aria-label" | "disabled" | "onClick" | "type">;
+  Pick<
+    ButtonHTMLAttributes<HTMLButtonElement>,
+    "aria-busy" | "aria-describedby" | "aria-label" | "disabled" | "onClick" | "type"
+  >;
 
 function action(
   variant: "button-primary" | "button-secondary",

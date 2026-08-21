@@ -327,6 +327,11 @@ class WhisperBackend(ASRBackend):
         }
         if self.settings.language is not None:
             generation_kwargs["language"] = self.settings.language
+        elif language in {"fr", "en"}:
+            # Whisper has explicit French and English language tokens. Dioula
+            # has no supported token in this model family and must remain in
+            # multilingual transcription mode without a forced language.
+            generation_kwargs["language"] = language
         inference_kwargs: dict[str, Any] = {
             "generate_kwargs": generation_kwargs,
             "batch_size": self.settings.batch_size,

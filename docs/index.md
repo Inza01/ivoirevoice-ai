@@ -13,6 +13,8 @@ needed for a task.
 - [Architecture](architecture.md): packages, runtime flows and boundaries.
 - [Phase 2 architecture](phase2_architecture.md): target web, API, service,
   persistence and migration boundaries.
+- [ASR web integration](asr-web-integration.md): versioned HTTP contracts,
+  temporary upload policy, model lifecycle and local runtime.
 - [Design system](design-system.md): accessible visual and interaction rules
   for the new web platform.
 - [Core engineering beliefs](design-docs/core-beliefs.md): durable design
@@ -37,6 +39,8 @@ needed for a task.
 - [Execution plans](exec-plans/README.md): format for non-trivial changes.
 - [Phase 2 Foundation execution plan](exec-plans/completed/language-learning-platform-foundation.md):
   implementation scope, decisions and validation evidence for the new web shell.
+- [Phase 2A ASR execution plan](exec-plans/completed/web-asr-integration.md):
+  completed integration scope, decisions and validation evidence.
 
 ## Machine-readable navigation
 

@@ -93,6 +93,7 @@ Thumbs.db
 .ipynb_checkpoints/
 
 # Frontend dependencies, local configuration and build/test outputs
+/node_modules/
 /web/node_modules/
 /web/.next/
 /web/out/

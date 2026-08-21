@@ -23,8 +23,11 @@ aggregates.
    patterns.
 6. The Phase 2 `web/` Foundation calls only a same-origin proxy contract; its
    FastAPI origin is server-only and never exposed through `NEXT_PUBLIC_*`.
-7. The Foundation audio picker validates locally but does not upload, retain or
-   process audio until a separately reviewed API integration exists.
+7. The Phase 2A transcription flow sends audio only through the allowlisted
+   same-origin proxy to the versioned FastAPI adapter. The browser never sees
+   the private backend origin or a checkpoint path.
+8. Uploaded audio is written under a random internal name in a private
+   temporary directory, validated, processed once and deleted immediately.
 
 ## Required controls
 
@@ -41,6 +44,15 @@ aggregates.
   `EVALUATION_FAILED_AFTER_ACCESS` as irreversible holdout-consumption states.
 - Rotate a credential immediately if a real secret enters Git history; do not
   rewrite history without explicit authorization.
+- Accept only WAV, MP3, FLAC or OGG whose extension, declared MIME, binary
+  signature and decoded container agree; reject empty, non-finite, oversized
+  or longer-than-30-second audio.
+- Keep the web-ASR runtime at one Uvicorn worker and one active inference per
+  process so concurrent requests cannot retain several models in VRAM.
+- Log only generated request IDs, public model IDs, language, status, safe
+  error code and duration; never log audio, filename, path or transcription.
+- Keep `IVOIREVOICE_API__AUDIO_RETENTION=delete_immediately`; any other
+  retention policy requires a new privacy and consent review.
 
 ## Review triggers
 
@@ -55,7 +67,9 @@ Require human review for changes to:
 The threat model assumes a trusted local operator. The MVP is not hardened for
 untrusted public uploads or internet-facing deployment.
 
-The presence of the new web shell does not change that threat model. Public
-deployment remains blocked until authentication, upload content sniffing,
-retention/deletion, explicit CORS, rate limiting and privacy-safe observability
-have been implemented and reviewed.
+The Phase 2A upload path adds content sniffing and immediate deletion but does
+not change that threat model. Public deployment remains blocked until
+authentication, authorization, rate limiting, abuse controls, explicit CORS
+where needed and production privacy-safe observability have been implemented
+and reviewed. The current same-origin proxy buffers a bounded multipart body
+and is acceptable only for the local MVP.

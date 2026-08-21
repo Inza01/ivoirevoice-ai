@@ -52,25 +52,27 @@ function TechnologyItem({ description, icon, status, statusLabel, title }: Techn
 
 export default function HomePage() {
   const { locale, messages } = useI18n();
-  const comingSoonLabel = messages.status.coming_soon;
 
   const features = [
     {
       description: messages.home.transcribeDescription,
       href: "/transcribe",
       icon: "audio",
+      status: "experimental",
       title: messages.home.transcribeTitle,
     },
     {
       description: messages.home.translateDescription,
       href: "/translate",
       icon: "translate",
+      status: "coming_soon",
       title: messages.home.translateTitle,
     },
     {
       description: messages.home.learnDescription,
       href: "/learn",
       icon: "learn",
+      status: "coming_soon",
       title: messages.home.learnTitle,
     },
   ] as const;
@@ -79,16 +81,19 @@ export default function HomePage() {
     {
       description: messages.home.transcribeDescription,
       icon: "microphone",
+      status: "experimental",
       title: messages.home.transcribeTitle,
     },
     {
       description: messages.home.translateDescription,
       icon: "translate",
+      status: "coming_soon",
       title: messages.home.translateTitle,
     },
     {
       description: messages.home.learnDescription,
       icon: "book",
+      status: "coming_soon",
       title: messages.home.learnTitle,
     },
   ] as const;
@@ -120,8 +125,8 @@ export default function HomePage() {
                 icon={feature.icon}
                 key={feature.href}
                 linkLabel={messages.common.learnMore}
-                status="coming_soon"
-                statusLabel={comingSoonLabel}
+                status={feature.status}
+                statusLabel={messages.status[feature.status]}
                 title={feature.title}
               />
             ))}
@@ -188,8 +193,8 @@ export default function HomePage() {
                 description={item.description}
                 icon={item.icon}
                 key={item.title}
-                status="coming_soon"
-                statusLabel={comingSoonLabel}
+                status={item.status}
+                statusLabel={messages.status[item.status]}
                 title={item.title}
               />
             ))}

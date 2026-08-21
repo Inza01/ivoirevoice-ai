@@ -42,7 +42,7 @@ async def test_models_endpoint_exposes_only_dummy_backend(client: httpx.AsyncCli
             {
                 "name": "dummy",
                 "supported_languages": ["fr", "dyu"],
-                "implementation": "DummyBackend",
+                "implementation": "legacy",
             }
         ]
     }

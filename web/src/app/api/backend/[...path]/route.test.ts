@@ -10,7 +10,9 @@ function context(...path: string[]) {
 }
 
 function request(path: string, init?: RequestInit): Request {
-  return new Request(`${FRONTEND_ORIGIN}/api/backend/${path}`, init);
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Host")) headers.set("Host", "127.0.0.1:3000");
+  return new Request(`${FRONTEND_ORIGIN}/api/backend/${path}`, { ...init, headers });
 }
 
 function postRequest(path: string, body: string, contentType: string): Request {
@@ -35,15 +37,13 @@ afterEach(() => {
 describe("allowlisted backend route", () => {
   it("forwards an allowlisted GET to the configured server-only origin", async () => {
     vi.stubEnv("IVOIREVOICE_API_INTERNAL_URL", BACKEND_ORIGIN);
-    const backendFetch = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(Response.json({ service: "ivoirevoice", status: "ok", version: "1" }));
+    const backendFetch = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ status: "ok" }));
     vi.stubGlobal("fetch", backendFetch);
 
     const response = await GET(request("api/health"), context("api", "health"));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ service: "ivoirevoice", status: "ok", version: "1" });
+    expect(await response.json()).toEqual({ status: "ok" });
     expect(backendFetch).toHaveBeenCalledOnce();
     const [url, init] = backendFetch.mock.calls[0] ?? [];
     expect(String(url)).toBe(`${BACKEND_ORIGIN}/api/health`);
@@ -134,6 +134,70 @@ describe("allowlisted backend route", () => {
     expect(backendFetch).not.toHaveBeenCalled();
   });
 
+  it("accepts the browser Host when Next canonicalizes request.url to localhost", async () => {
+    vi.stubEnv("IVOIREVOICE_API_INTERNAL_URL", BACKEND_ORIGIN);
+    const backendFetch = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        audio_duration_seconds: 1,
+        id: "transcription_1",
+        language: "fr",
+        model_id: "whisper_tiny_baseline",
+        processing_time_seconds: 0.1,
+        rtf: 0.1,
+        status: "completed",
+        text: "synthetic",
+      }),
+    );
+    vi.stubGlobal("fetch", backendFetch);
+    const body = "--safe-boundary--";
+    const canonicalizedRequest = new Request(
+      "http://localhost:3000/api/backend/api/v1/transcriptions",
+      {
+        body,
+        headers: {
+          "Content-Length": String(body.length),
+          "Content-Type": "multipart/form-data; boundary=safe",
+          Host: "127.0.0.1:3000",
+          Origin: "http://127.0.0.1:3000",
+        },
+        method: "POST",
+      },
+    );
+
+    const response = await POST(canonicalizedRequest, context("api", "v1", "transcriptions"));
+
+    expect(response.status).toBe(200);
+    expect(backendFetch).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a Host match when the Origin protocol differs", async () => {
+    vi.stubEnv("IVOIREVOICE_API_INTERNAL_URL", BACKEND_ORIGIN);
+    const backendFetch = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", backendFetch);
+    const body = "--safe-boundary--";
+    const requestWithDifferentProtocol = new Request(
+      "http://localhost:3000/api/backend/api/v1/transcriptions",
+      {
+        body,
+        headers: {
+          "Content-Length": String(body.length),
+          "Content-Type": "multipart/form-data; boundary=safe",
+          Host: "127.0.0.1:3000",
+          Origin: "https://127.0.0.1:3000",
+        },
+        method: "POST",
+      },
+    );
+
+    const response = await POST(
+      requestWithDifferentProtocol,
+      context("api", "v1", "transcriptions"),
+    );
+
+    expect(response.status).toBe(403);
+    expect(backendFetch).not.toHaveBeenCalled();
+  });
+
   it("rejects an upload declared above 25 MiB plus multipart overhead", async () => {
     vi.stubEnv("IVOIREVOICE_API_INTERNAL_URL", BACKEND_ORIGIN);
     const backendFetch = vi.fn<typeof fetch>();
@@ -203,6 +267,66 @@ describe("allowlisted backend route", () => {
     expect(JSON.parse(publicBody)).toEqual({ error: { code: "service_unavailable" } });
     expect(publicBody).not.toContain("/home/");
     expect(publicBody).not.toContain("stack");
+  });
+
+  it("forwards only an allowlisted model-language error code", async () => {
+    vi.stubEnv("IVOIREVOICE_API_INTERNAL_URL", BACKEND_ORIGIN);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json(
+          {
+            error: {
+              code: "incompatible_model_language",
+              message: "private failure at /home/operator/model",
+            },
+          },
+          { status: 422 },
+        ),
+      ),
+    );
+
+    const response = await POST(
+      postRequest(
+        "api/v1/transcriptions",
+        "--safe-boundary--",
+        "multipart/form-data; boundary=safe",
+      ),
+      context("api", "v1", "transcriptions"),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(422);
+    expect(JSON.parse(body)).toEqual({ error: { code: "incompatible_model_language" } });
+    expect(body).not.toContain("/home/");
+    expect(body).not.toContain("private failure");
+  });
+
+  it("replaces an unknown upstream error code with a status-derived public code", async () => {
+    vi.stubEnv("IVOIREVOICE_API_INTERNAL_URL", BACKEND_ORIGIN);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          Response.json(
+            { error: { code: "internal_private_code", message: "secret traceback" } },
+            { status: 422 },
+          ),
+        ),
+    );
+
+    const response = await POST(
+      postRequest(
+        "api/v1/transcriptions",
+        "--safe-boundary--",
+        "multipart/form-data; boundary=safe",
+      ),
+      context("api", "v1", "transcriptions"),
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: { code: "invalid_request" } });
   });
 
   it.each([

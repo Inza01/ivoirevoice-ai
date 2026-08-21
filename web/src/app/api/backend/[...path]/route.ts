@@ -3,6 +3,7 @@ const MULTIPART_OVERHEAD_BYTES = 256 * 1024;
 const TRANSCRIPTION_REQUEST_LIMIT_BYTES = AUDIO_LIMIT_BYTES + MULTIPART_OVERHEAD_BYTES;
 const TRANSLATION_REQUEST_LIMIT_BYTES = 64 * 1024;
 const BACKEND_RESPONSE_LIMIT_BYTES = 2 * 1024 * 1024;
+const BACKEND_ERROR_LIMIT_BYTES = 16 * 1024;
 const BACKEND_TIMEOUT_MS = 120_000;
 const SAFE_TRANSCRIPTION_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -20,13 +21,31 @@ type Contract = {
 };
 
 type PublicErrorCode =
+  | "incompatible_model_language"
   | "invalid_request"
   | "method_not_allowed"
+  | "model_unavailable"
   | "not_found"
   | "payload_too_large"
   | "service_unavailable"
-  | "unsupported_media_type"
+  | "transcription_failed"
+  | "unknown_language"
+  | "unknown_model"
+  | "unsupported_audio"
   | "upstream_response_too_large";
+
+const FORWARDED_BACKEND_CODES = new Set<PublicErrorCode>([
+  "incompatible_model_language",
+  "invalid_request",
+  "model_unavailable",
+  "not_found",
+  "payload_too_large",
+  "service_unavailable",
+  "transcription_failed",
+  "unknown_language",
+  "unknown_model",
+  "unsupported_audio",
+]);
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -163,20 +182,61 @@ function contentTypeMatches(request: Request, expected: NonNullable<Contract["re
 }
 
 function isSameOrigin(request: Request): boolean {
-  const origin = request.headers.get("Origin");
-  if (!origin) return false;
+  const rawOrigin = request.headers.get("Origin");
+  const rawHost = request.headers.get("Host");
+  if (!rawOrigin || !rawHost) return false;
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    const origin = new URL(rawOrigin);
+    const requestUrl = new URL(request.url);
+    const requestHost = rawHost.trim().toLowerCase();
+    const isHttp = origin.protocol === "http:" || origin.protocol === "https:";
+    const protocolMatches = origin.protocol === requestUrl.protocol;
+    const hostMatches =
+      origin.host.toLowerCase() === requestUrl.host.toLowerCase() ||
+      origin.host.toLowerCase() === requestHost;
+    return isHttp && protocolMatches && !origin.username && !origin.password && hostMatches;
   } catch {
     return false;
   }
 }
 
-function sanitizedBackendError(status: number): Response {
-  if (status === 400 || status === 422) return publicError(status, "invalid_request");
+async function safeBackendErrorCode(response: Response): Promise<PublicErrorCode | null> {
+  const contentType = response.headers.get("Content-Type")?.toLowerCase() ?? "";
+  const declaredLength = response.headers.get("Content-Length");
+  if (
+    !contentType.startsWith("application/json") ||
+    (declaredLength &&
+      (!/^\d+$/.test(declaredLength) || Number(declaredLength) > BACKEND_ERROR_LIMIT_BYTES))
+  ) {
+    await discardBody(response);
+    return null;
+  }
+  const body = await readBoundedBody(response.body, BACKEND_ERROR_LIMIT_BYTES);
+  if (!body) return null;
+  try {
+    const payload: unknown = JSON.parse(new TextDecoder().decode(body));
+    if (typeof payload !== "object" || payload === null || !("error" in payload)) return null;
+    const error = payload.error;
+    if (typeof error !== "object" || error === null || !("code" in error)) return null;
+    const code = error.code;
+    return typeof code === "string" && FORWARDED_BACKEND_CODES.has(code as PublicErrorCode)
+      ? (code as PublicErrorCode)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function sanitizedBackendError(response: Response): Promise<Response> {
+  const status = response.status;
+  const safeCode = await safeBackendErrorCode(response);
+  if (safeCode) return publicError(status >= 500 ? 502 : status, safeCode);
+  if (status === 400 || status === 409 || status === 422) {
+    return publicError(status, "invalid_request");
+  }
   if (status === 404) return publicError(404, "not_found");
   if (status === 413) return publicError(413, "payload_too_large");
-  if (status === 415) return publicError(415, "unsupported_media_type");
+  if (status === 415) return publicError(415, "unsupported_audio");
   return publicError(status >= 500 ? 502 : status, "service_unavailable");
 }
 
@@ -200,7 +260,7 @@ async function proxy(request: Request, context: ProxyContext): Promise<Response>
       return publicError(500, "service_unavailable");
     }
     if (!contentTypeMatches(request, contract.requestMediaType)) {
-      return publicError(415, "unsupported_media_type");
+      return publicError(415, "unsupported_audio");
     }
     const declaredLength = parseContentLength(request, contract.requestLimitBytes);
     if (declaredLength instanceof Response) return declaredLength;
@@ -235,8 +295,7 @@ async function proxy(request: Request, context: ProxyContext): Promise<Response>
   }
 
   if (!backendResponse.ok) {
-    await discardBody(backendResponse);
-    return sanitizedBackendError(backendResponse.status);
+    return sanitizedBackendError(backendResponse);
   }
 
   const declaredResponseLength = backendResponse.headers.get("Content-Length");

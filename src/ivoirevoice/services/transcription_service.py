@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import importlib
+import math
 import os
+import re
+import threading
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
+import numpy
 import soundfile
 import yaml
 
@@ -20,6 +24,23 @@ from ivoirevoice.models.whisper import WhisperBackend, load_whisper_settings
 
 MODEL_STATUS = {"baseline", "adapted", "pilot_adapted", "final_adapted"}
 MODEL_BACKENDS = {"whisper"}
+MODEL_KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_]{0,63}$")
+
+# This is the single public upload-format policy used by the service and the
+# HTTP adapter. An extension, declared MIME type, file signature and decoded
+# SoundFile container must all agree before inference.
+AUDIO_MIME_TYPES: Mapping[str, frozenset[str]] = {
+    ".wav": frozenset({"audio/wav", "audio/wave", "audio/x-wav"}),
+    ".mp3": frozenset({"audio/mp3", "audio/mpeg"}),
+    ".flac": frozenset({"audio/flac", "audio/x-flac"}),
+    ".ogg": frozenset({"application/ogg", "audio/ogg"}),
+}
+AUDIO_CONTAINER_FORMATS: Mapping[str, frozenset[str]] = {
+    ".wav": frozenset({"RF64", "WAV", "WAVEX"}),
+    ".mp3": frozenset({"MP3"}),
+    ".flac": frozenset({"FLAC"}),
+    ".ogg": frozenset({"OGG"}),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,6 +241,9 @@ def load_model_catalog(path: str | Path | None = None) -> ModelCatalog:
     for key, value in raw_models.items():
         label = f"models.{key}"
         data = _mapping(value, label)
+        normalized_key = key.strip().lower()
+        if not MODEL_KEY_PATTERN.fullmatch(normalized_key):
+            raise ConfigError(f"{label} doit être un identifiant public sûr.")
         enabled = data.get("enabled")
         if not isinstance(enabled, bool):
             raise ConfigError(f"{label}.enabled doit être booléen.")
@@ -242,7 +266,7 @@ def load_model_catalog(path: str | Path | None = None) -> ModelCatalog:
             raise ConfigError(f"{label}.language doit être une chaîne non vide.")
         models.append(
             ModelDefinition(
-                key=key.strip().lower(),
+                key=normalized_key,
                 display_name=_string(data, "display_name", label),
                 backend=backend,
                 status=status,
@@ -373,6 +397,9 @@ class TranscriptionService:
     def __init__(self, catalog: ModelCatalog, registry: ModelRegistry) -> None:
         self.catalog = catalog
         self.registry = registry
+        # A process-local lock guarantees that only one backend owns accelerator
+        # resources at a time. Deployments must still use one worker per GPU.
+        self._inference_lock = threading.Lock()
 
     def validate_extension(self, filename: str | Path) -> str:
         extension = Path(filename).suffix.lower()
@@ -396,11 +423,31 @@ class TranscriptionService:
             info = soundfile.info(path)
         except (OSError, RuntimeError) as exc:
             raise ConfigError("Le fichier audio ne peut pas être décodé.") from exc
+        expected_containers = AUDIO_CONTAINER_FORMATS.get(extension)
+        if expected_containers is None or str(info.format).upper() not in expected_containers:
+            raise ConfigError("Le conteneur audio ne correspond pas au format déclaré.")
+        if info.frames <= 0 or info.samplerate <= 0:
+            raise ConfigError("Le fichier audio ne contient aucun échantillon valide.")
+        if info.channels not in {1, 2}:
+            raise ConfigError("Seuls les audios mono ou stéréo sont acceptés.")
         duration = float(info.duration)
-        if duration <= 0:
+        if not math.isfinite(duration) or duration <= 0:
             raise ConfigError("La durée audio doit être strictement positive.")
         if duration > self.catalog.max_audio_duration_seconds:
             raise ConfigError("La durée audio dépasse la limite autorisée.")
+        try:
+            for block in soundfile.blocks(
+                path,
+                blocksize=65_536,
+                dtype="float32",
+                always_2d=True,
+            ):
+                if not bool(numpy.isfinite(block).all()):
+                    raise ConfigError("Le fichier audio contient des valeurs non finies.")
+        except ConfigError:
+            raise
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise ConfigError("Le fichier audio ne peut pas être décodé.") from exc
         return AudioMetadata(
             audio_id=sha256_file(path)[:16],
             duration_seconds=duration,
@@ -419,13 +466,24 @@ class TranscriptionService:
         definition = self.catalog.definition(model_key)
         if language not in definition.languages:
             raise ConfigError("La langue choisie n'est pas activée pour ce modèle.")
-        backend = self.registry.create(model_key)
-        try:
-            backend.load()
-            result: TranscriptionResult = backend.transcribe(audio_path, language)
-        finally:
-            backend.unload()
+        with self._inference_lock:
+            backend = self.registry.create(model_key)
+            try:
+                backend.load()
+                result: TranscriptionResult = backend.transcribe(audio_path, language)
+            finally:
+                backend.unload()
         duration = result.duration_seconds or audio_metadata.duration_seconds
+        if not math.isfinite(duration) or duration <= 0:
+            raise ValueError("Le backend a retourné une durée audio invalide.")
+        if (
+            not math.isfinite(result.processing_time_seconds)
+            or result.processing_time_seconds < 0
+        ):
+            raise ValueError("Le backend a retourné un temps de traitement invalide.")
+        rtf = result.processing_time_seconds / duration
+        if not math.isfinite(rtf) or rtf < 0:
+            raise ValueError("Le backend a retourné un RTF invalide.")
         effective_device = _effective_device(definition.device)
         return TranscriptionOutput(
             model_key=definition.key,
@@ -438,7 +496,7 @@ class TranscriptionService:
             transcription=result.text,
             processing_time_seconds=result.processing_time_seconds,
             audio_duration_seconds=duration,
-            rtf=(result.processing_time_seconds / duration if duration else 0.0),
+            rtf=rtf,
             checkpoint_name=definition.checkpoint_name,
             task=definition.task,
             configured_language=definition.configured_language,

@@ -9,17 +9,17 @@ retourne un `TranscriptionResult` commun. `ModelRegistry` associe un nom stable
 modifier l'API, l'interface ou le schéma de résultat.
 
 ```text
-FastAPI                    Gradio
-   |                          |
- Dummy            ComparisonService
-                              |
-                    TranscriptionService
-                              |
-                       ModelRegistry
-                              |
-                         ASRBackend
-                              |
-              Whisper Tiny / Small / Tiny Dioula Final
+FastAPI /api/v1             Gradio
+       |                       |
+       |               ComparisonService
+       |                       |
+       +------ TranscriptionService
+                          |
+                   ModelRegistry
+                          |
+                     ASRBackend
+                          |
+          Whisper Tiny / Small / Tiny Dioula Final
 ```
 
 La configuration principale vient de `configs/project.yaml`. Les variables
@@ -48,11 +48,10 @@ ASRBackend                         application services
 local frozen model                ASR / translation / learning ports
 ```
 
-Le chemin de gauche reste la seule interface reliée au modèle Dioula final au
-début de la Phase 2. Le chemin de droite fournit d'abord le design system, la
-navigation, les contrats et des états honnêtes `coming_soon`. Il ne devient
-`experimental` ou `available` qu'après raccordement, tests et garde-fous du
-service concerné.
+Le chemin de gauche reste l'interface de comparaison historique. Le chemin de
+droite raccorde désormais la transcription unitaire à la même frontière de
+service, avec un upload éphémère et des états honnêtes `experimental`. La
+traduction, l'apprentissage et la communauté restent `coming_soon`.
 
 Frontières obligatoires :
 
@@ -65,6 +64,16 @@ Frontières obligatoires :
 - la traduction dépend d'un futur `TranslationProvider` explicite et ne doit
   jamais être simulée ;
 - le code Dioula canonique reste `dyu` dans les contrats techniques.
+
+L'intégration ASR web conserve les routes FastAPI historiques pour
+compatibilité et ajoute `/api/health`, `/api/v1/languages`, `/api/v1/models`
+et `/api/v1/transcriptions`. Next.js relaie uniquement cette allowlist via une
+origine serveur privée. Une requête est bornée à 25 Mio et 30 secondes, écrite
+sous un nom UUID dans un répertoire temporaire privé, validée par extension,
+MIME, signature et décodage, puis supprimée immédiatement. Le service
+sérialise `load / transcribe / unload` afin de ne garder qu'un modèle actif par
+processus. Les détails sont dans le
+[contrat d'intégration ASR web](asr-web-integration.md).
 
 L'architecture cible, le contrat produit et les règles visuelles sont détaillés
 respectivement dans [l'architecture Phase 2](phase2_architecture.md), le

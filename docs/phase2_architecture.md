@@ -257,13 +257,14 @@ Socle public proposé :
 | `POST /api/v1/exercise-attempts` | enregistrer et corriger une tentative |
 | `GET /api/v1/me/progress` | progression de l'utilisateur authentifié |
 
-`POST /transcriptions` accepte `audio`, `language` et `model`. Une réponse
-`202` fournit un UUID et un état `queued`, `processing`, `succeeded`, `failed`
-ou `expired`. Une optimisation synchrone locale peut retourner immédiatement
-un résultat, mais conserve le même schéma de ressource.
+`POST /api/v1/transcriptions` accepte `audio`, `language` et `model`. Le MVP
+local retourne synchroniquement un UUID aléatoire et l'état `completed`, avec
+un schéma compatible avec une future ressource asynchrone. Il ne persiste ni
+l'audio ni le résultat côté serveur.
 
-Les réponses d'erreur utilisent une enveloppe stable avec `code`, `message`,
-`details` assainis et `request_id`. Une paire de traduction sans provider
+Les réponses d'erreur publiques utilisent une enveloppe stable avec un `code`
+issu d'une allowlist ; messages backend, détails bruts et traceback ne
+traversent pas le proxy. Une paire de traduction sans provider
 retourne une erreur de capacité explicite ; elle ne fabrique jamais un texte.
 Les endpoints modèles/langues n'exposent ni nom de classe interne, ni chemin,
 ni contenu privé.
@@ -278,7 +279,7 @@ Le service ASR réutilise `TranscriptionService`, `ModelRegistry` et
 | Langue | Statut | Preuve et limite |
 |---|---|---|
 | Français (`fr`) | `experimental` | baselines configurées, sans évaluation française finale publiée |
-| English (`en`) | `coming_soon` | aucun backend anglais raccordé dans le catalogue actuel |
+| English (`en`) | `experimental` | baselines multilingues raccordées, sans benchmark anglais publié |
 | Dioula (`dyu`) | `experimental` | modèle final local gelé ; résultats limités au corpus observé |
 
 `auto` est une option d'expérience utilisateur, pas une langue. Elle reste
@@ -331,7 +332,7 @@ languages:
   en:
     display_names: {fr: Anglais, en: English}
     interface: available
-    asr: coming_soon
+    asr: experimental
     translation: coming_soon
   dyu:
     display_names: {fr: Dioula, en: Dioula}
@@ -362,6 +363,12 @@ test de contrat pour éviter la dérive.
 - conserver FastAPI, le modèle et la base sur un réseau non public par défaut ;
 - préparer rate limiting, protection CSRF selon le mode d'authentification et
   headers de sécurité avant exposition Internet.
+
+Le contrat ASR web actuellement implémenté accepte WAV, MP3, FLAC et OGG,
+jusqu'à 25 Mio et 30 secondes. M4A/MP4/WebM ne sont pas annoncés par le
+décodeur courant. Les fichiers utilisent un nom interne UUID dans un répertoire
+temporaire privé et sont supprimés en succès comme en échec. Un verrou limite
+l'inférence à un modèle actif par processus ; le runtime GPU reste mono-worker.
 
 Email/mot de passe peut être ajouté après définition du stockage sécurisé des
 mots de passe, des sessions, de la vérification d'email et de la récupération.
@@ -431,9 +438,10 @@ EXPERT LINGUISTIQUE`.
 3. Introduire le registre de langues et le client API abstrait avec doubles de
    données uniquement. **Foundation terminée.**
 4. Ajouter les routeurs `/api/v1` à côté des routes FastAPI historiques.
-5. Raccorder d'abord l'état de santé, les langues et les modèles.
+   **Terminé pour l'ASR.**
+5. Raccorder l'état de santé, les langues et les modèles. **Terminé.**
 6. Raccorder une transcription utilisateur au service ASR existant, avec
-   upload temporaire, concurrence bornée et tests synthétiques.
+   upload temporaire, concurrence bornée et tests synthétiques. **Terminé.**
 7. Ajouter le port de traduction sans provider et afficher `coming_soon`.
 8. Introduire PostgreSQL et le stockage seulement avec politiques de migration,
    sauvegarde, rétention et suppression.
@@ -482,8 +490,8 @@ charge et revue de sécurité.
    registre TypeScript et client API abstrait.
 2. **Frontend shell / navigation — terminé** : layout partagé, routes,
    responsive, catalogues `fr` et `en`.
-3. **Transcription UI** : upload/microphone, états, résultat et actions ; aucun
-   raccordement ML direct au navigateur.
+3. **Transcription UI — terminée pour l'upload** : états, résultat et actions,
+   raccordés à FastAPI sans ML dans le navigateur ; microphone toujours futur.
 4. **Translation abstraction + UI** : deux panneaux et contrat provider ; toutes
    les paires restent `coming_soon` sans provider validé.
 5. **Learning domain** : modèle Course/Module/Lesson et workflow de validation.
@@ -495,8 +503,7 @@ charge et revue de sécurité.
 11. **Quality and deployment** : contrats API, tests E2E, accessibilité,
     sécurité, rétention, observabilité et préparation d'exploitation.
 
-Le prochain lot recommandé est le raccordement progressif des contrats publics
-FastAPI, en commençant par health/langues/modèles puis une transcription
-protégée. Une traduction, une base persistante, l'authentification et tout
-contenu pédagogique définitif nécessitent toujours des lots et validations
-séparés.
+Le prochain lot recommandé est l'abstraction de traduction sans faux provider,
+ou le durcissement d'exploitation (authentification, quotas et observabilité)
+avant toute exposition. Une traduction, une base persistante et tout contenu
+pédagogique définitif nécessitent toujours des lots et validations séparés.

@@ -26,7 +26,8 @@ describe("HomePage", () => {
       "/transcribe",
     );
     expect(screen.getAllByText(messages.common.demoNeedsReview)).toHaveLength(3);
-    expect(screen.getAllByText(messages.status.coming_soon)).toHaveLength(9);
+    expect(screen.getAllByText(messages.status.experimental)).toHaveLength(5);
+    expect(screen.getAllByText(messages.status.coming_soon)).toHaveLength(4);
   });
 
   it("uses the central registry to expose all three languages", () => {

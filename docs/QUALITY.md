@@ -9,9 +9,10 @@ known gap changes.
 | Model adapters | B+ | typed backend, lazy load/unload, pinned revisions | real-model CI is optional |
 | Evaluation | A- | internal WER/CER, comparable-run checks, one-time aggregate holdout evidence | final holdout has only 3 speaker groups |
 | Training | A- | smoke/pilot/full gates, deterministic seed, split checks, atomic recovery | training orchestration remains complex |
-| Services | A- | isolated failures, typed results, privacy-safe exports | limited runtime telemetry |
+| Services | A- | isolated failures, serialized model lifecycle, typed results, privacy-safe exports | limited runtime telemetry |
 | Gradio UI | B+ | offline construction tests, benchmark separation | Gradio 6 deprecations |
-| FastAPI | B | health/integration tests | real Whisper route not connected |
+| FastAPI | B+ | versioned discovery/transcription contracts, bounded temporary uploads, injected offline tests | real-model language smoke remains host-only |
+| Web platform | B+ | strict TypeScript, runtime contract validation, accessible ASR states and safe exports | browser E2E and public-runtime hardening remain open |
 | Repository harness | A- | agent map, knowledge map, CI, structural checks | freshness remains partly review-based |
 
 ## Required evidence

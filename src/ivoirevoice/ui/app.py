@@ -333,7 +333,7 @@ def create_interface(services: DemoServices | None = None) -> Any:
                         sources=["upload", "microphone"],
                         type="filepath",
                         format="wav",
-                        label="Audio — WAV, MP3, M4A ou OGG",
+                        label="Audio — WAV, MP3, FLAC ou OGG",
                     )
                     language = gr.Dropdown(
                         choices=[("Dioula", "dyu"), ("Français", "fr")],
